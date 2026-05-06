@@ -1,4 +1,4 @@
-# Milestone Timeline: LLM Inference Infrastructure
+# Milestone Timeline: LLM Inference Systems
 
 A chronological reference covering key developments from late 2022 through mid-2026.
 For depth, follow the cross-references to individual chapters.
