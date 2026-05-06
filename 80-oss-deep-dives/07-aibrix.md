@@ -85,7 +85,7 @@ Key spec fields:
 |---|---|
 | `backend` | One of `infinistore`, `vineyard`, `hpkv`, `distributed` |
 | `l1_capacity_gb` | Per-engine DRAM tier size (informs the L1 eviction threshold) |
-| `l2_capacity_gb` | Persistent tier capacity (aggregated across replicas) |
+| `l2_capacity_gb` | Distributed/remote tier capacity (aggregated across replicas) |
 | `eviction_policy` | `LRU`, `FIFO`, or `S3FIFO` |
 | `metadata_service` | `redis` or `etcd` — coordinates block placement across instances |
 | `runtime.replicas` | Number of backend replicas |
@@ -156,7 +156,7 @@ The controller creates a Deployment with the vLLM container spec populated from 
 
 ### 6. `StormService`
 
-The rolling upgrade primitive for P/D deployments, described in detail in [Part 4](#part-4-stormservice--zero-downtime-pd-upgrades). At a structural level, `StormService` sits above `RoleSet` in the hierarchy and manages it through a multi-phase upgrade state machine implemented in `pkg/controller/stormservice/`. The spec includes `prefill_pod_set`, `decode_pod_set`, `upgrade_strategy` (phases, health gates, and update mode — rolling, parallel, sequential, or interleaved), and `drain_timeout_seconds`. `StormService` writes `roleset-name` and `role-name` pod labels that the gateway's PD disaggregation algorithm reads; the tight coupling between the controller and the gateway is intentional and is what makes the drain-aware phase transitions possible.
+The rolling upgrade primitive for P/D deployments, described in detail in [Part 4](#part-4-stormservice--zero-downtime-pd-upgrades). At a structural level, `StormService` sits above `RoleSet` in the hierarchy and manages it through a multi-phase upgrade state machine implemented in `pkg/controller/stormservice/`. The spec includes `prefill_pod_set`, `decode_pod_set`, `upgrade_strategy` (phases, health gates, and update mode — rolling and inplace are StormService-level modes; parallel, sequential, and interleaved are RoleSet-level modes), and `drain_timeout_seconds`. `StormService` writes `roleset-name` and `role-name` pod labels that the gateway's PD disaggregation algorithm reads; the tight coupling between the controller and the gateway is intentional and is what makes the drain-aware phase transitions possible.
 
 ### 7. `RayClusterFleet`
 
@@ -390,7 +390,7 @@ On the question of whether AIBrix's CRD-heavy approach or llm-d's upstream-first
 
 ---
 
-## Current Production State
+## Current production state
 
 AIBrix v0.6.0 (released March 2026, git HEAD `31176b4ac242b3d2f3e31ee6e3cd31ba931f5d5d`) represents a production-ready baseline aligned with the ByteDance inference infrastructure model. The 8 CRDs cover the full operational lifecycle: `PodSet` and `RoleSet` describe the compute topology; `ModelAdapter` manages LoRA loading and multi-adapter coexistence; `PodAutoscaler` handles reactive scaling with APA's fluctuation tolerance and proactive scaling via the GPU Optimizer; `KVCache` provisions and manages the distributed L1+L2 offload tier; `StormService` coordinates zero-downtime P/D upgrades; and `RayClusterFleet`/`RayClusterReplicaSet` manage large multi-node jobs. The vLLM engine integration is deepest across all features — KV connectors, KV event sync (vLLM ≥ 0.7 required), and LoRA adapter APIs all tie into vLLM internals — with SGLang reaching comparable feature parity in v0.5 (November 2025) and TRT-LLM end-to-end P/D tests landing in April 2026. The gateway plugin algorithm catalog (`pkg/plugins/gateway/algorithms/`) has grown to over fifteen routing strategies, from `random.go` and `least_request.go` through `prefix_cache_preble.go` (Preble paper, arXiv 2407.00023) and `vtc.go` (VTC, OSDI 2024), reflecting the operational reality that no single routing algorithm dominates all traffic shapes. The March 2026 addition of a web console (`apps/console/`) with a BFF and SQLite-backed local mode pushes toward a single-pane-of-glass operator UX that distinguishes AIBrix from the more CLI- and CRD-centric Dynamo and llm-d.
 

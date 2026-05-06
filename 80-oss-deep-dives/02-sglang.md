@@ -74,7 +74,7 @@ flowchart LR
         DTM["DetokenizerManager\nmanagers/detokenizer_manager.py\n(separate process)"]
         DPC["DataParallelController\nmanagers/data_parallel_controller.py\n(with dp_size > 1)"]
 
-        subgraph SchedulerProc["Scheduler process (one per dp_rank × pp_stage)"]
+        subgraph SchedulerProc["Scheduler process (one per tp_rank × pp_rank × dp_rank shard)"]
             SCH["Scheduler\nmanagers/scheduler.py\n--- RadixCache\n--- SchedulePolicy\n--- GrammarManager\n--- SpecWorker"]
         end
 
@@ -99,7 +99,7 @@ flowchart LR
     Gateway --> HTTP
 ```
 
-One Scheduler process is launched per `(dp_rank × pp_stage)` shard. With `dp_size=1` and `pp_size=1` there is a single Scheduler process. `DataParallelController` (`managers/data_parallel_controller.py`) fans requests across multiple Scheduler processes when DP is on. The controller implements a `MultiTokenizerRouter` and `MultiHttpWorkerDetokenizerMixin` that allow multiple HTTP worker threads to share a pool of Scheduler/Detokenizer processes, with `tokenizer_worker_num` controlling the degree of parallelism in the tokenization front-end.
+One Scheduler process is launched per `tp_rank × pp_rank × dp_rank` shard. With `dp_size=1` and `pp_size=1` there is a single Scheduler process. `DataParallelController` (`managers/data_parallel_controller.py`) fans requests across multiple Scheduler processes when DP is on. The controller implements a `MultiTokenizerRouter` and `MultiHttpWorkerDetokenizerMixin` that allow multiple HTTP worker threads to share a pool of Scheduler/Detokenizer processes, with `tokenizer_worker_num` controlling the degree of parallelism in the tokenization front-end.
 
 ### 1.3 Batching and the ScheduleBatch object
 
@@ -402,13 +402,13 @@ SGLang supports an unusually large matrix of attention backends, selected throug
 
 ### 5.1 Production-default backends on NVIDIA hardware
 
-**FlashAttention-3/4** (`fa3` → `FlashAttentionBackend` with `fa_impl_ver=3`, `fa4` → same class with `fa_impl_ver=4`, in `flashattention_backend.py`) — currently the default on Hopper (H100/H200). FA3 uses Hopper-specific warp specialization (producer/consumer asynchronous pipeline) and TMA (Tensor Memory Accelerator). FA4 is the CuTe-DSL rewrite targeting Blackwell's different core count and tcgen05 instruction set. See [§10/01](../10-engine-core/01-attention-kernels.md) for the full FA lineage.
+**FlashAttention-3/4** (`fa3` → `FlashAttentionBackend` with `fa_impl_ver=3`, `fa4` → same class with `fa_impl_ver=4`, in `flashattention_backend.py`) — currently the default on Hopper (H100/H200). FA3 uses Hopper-specific warp specialization (producer/consumer asynchronous pipeline) and TMA (Tensor Memory Accelerator). FA4 is the CuTe-DSL rewrite targeting Blackwell's different core count and tcgen05 instruction set. On Hopper, FlashInfer with BSR-format KV layout is also supported as an alternative attention backend alongside FA-3; it is preferred for certain quantized and paged-decode workloads where its inspector-executor JIT pipeline provides better CUDA-graph compatibility. See [§10/01](../10-engine-core/01-attention-kernels.md) for the full FA lineage.
 
 **FlashInfer** (`flashinfer` → `FlashInferAttnBackend` for non-MLA, `FlashInferMLAAttnBackend` for MLA, in `flashinfer_backend.py` / `flashinfer_mla_backend.py`) — the paged-KV backend using BSR (block sparse row) format. Provides `BatchPrefillWithRaggedKVCacheWrapper`, `BatchPrefillWithPagedKVCacheWrapper`, and `BatchDecodeWithPagedKVCacheWrapper`. `cascade.merge_state` is used for cascade attention when chunked prefill results must be merged with the running decode state. Multi-item scoring (`MultiItemScoringParams`) supports chunk-aware scoring with item delimiters, used for retrieval-augmented scoring tasks.
 
 ### 5.2 MLA family for DeepSeek
 
-DeepSeek-V2/V3/V4's Multi-head Latent Attention uses a low-rank compressed KV representation ($C^{KV} \in \mathbb{R}^{d_c}$ with $d_c \ll d_{\text{model}}$) that dramatically reduces KV cache size — by a factor of roughly 5–10× compared to standard GQA. The asymmetric head dimensions ($qk\_\text{head\_dim} \neq v\_\text{head\_dim}$) and optional fused-RoPE path require specialized kernel variants. SGLang maintains four MLA backends:
+DeepSeek-V2/V3/V4's Multi-head Latent Attention uses a low-rank compressed KV representation ($C^{KV} \in \mathbb{R}^{d_c}$ with $d_c \ll d_{\text{model}}$) that dramatically reduces KV cache size — roughly 5–6× compression versus standard MHA for DeepSeek-V2/V3 (the exact ratio depends on model dimensions). The asymmetric head dimensions ($qk\_\text{head\_dim} \neq v\_\text{head\_dim}$) and optional fused-RoPE path require specialized kernel variants. SGLang maintains four MLA backends:
 
 - `flashmla` → `FlashMLABackend` — DeepSeek's FlashMLA, the primary production path
 - `cutlass_mla` → `CutlassMLABackend` — CUTLASS-based variant for specific precision/platform combinations
@@ -640,7 +640,7 @@ A few cross-cutting design decisions distinguish SGLang from alternative archite
 
 ---
 
-## Current Production State
+## Current production state
 
 SGLang occupies the primary alternative position to vLLM for GPU cluster serving. Its throughput numbers have led published benchmarks at multiple points since the original NeurIPS 2024 release, and it is the engine behind the official DeepSeek inference service. The combination of RadixAttention and the overlap scheduler is the key throughput advantage for workloads where requests share long prefixes — RAG pipelines with shared document corpora, tool-use agents with shared system prompts, code generation with a shared large context window. For these workloads, the radix tree's arbitrary-granularity sharing detection and the cache-aware admission policies (LPM, DFS-weight) translate directly into fewer prefill FLOPs per request, which in turn increases sustainable throughput at a given memory budget. The overlap scheduler then ensures that the CPU overhead of managing the tree does not appear as GPU idle time. For workloads with low prefix reuse (diverse short requests, low inter-request correlation), the gap between SGLang and vLLM narrows substantially, since both systems reduce to roughly equivalent continuous batching loops with similar attention kernels.
 

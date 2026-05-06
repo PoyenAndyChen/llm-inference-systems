@@ -56,9 +56,9 @@ For $L = 128$, $K = 8$, $E = 256$, $s = 1$ (FP8), $\mathrm{AI} \approx 8$ FLOP/b
 
 **All-to-all volume is the first-order serving cost.** Each MoE layer dispatches per-token activations to expert-holding ranks (dispatch all-to-all), runs experts, combines results back (combine all-to-all). With activation dim $D$ at $b$ bits, two passes per layer:
 
-$$V_{\text{a2a}} \;=\; 2 \cdot L K \cdot D \cdot \tfrac{b}{8} \quad \text{bytes per layer per pass.}$$
+$$V_{\text{a2a}} \;=\; 2 \cdot L K \cdot D \cdot \tfrac{b}{8} \quad \text{bytes per layer (dispatch + combine).}$$
 
-At $L=4096$, $K=8$, $D=7168$, FP8 ($b=8$), one MoE layer pushes ${\sim}235$ MB of activation traffic. Multiply by the number of MoE layers (DeepSeek-V3 has 58 of 61), divide by available bandwidth — and that bandwidth is the *hard* number because all-to-all gets no $(P-1)/P$ identity to amortize against. GB200 NVL72's 130 TB/s aggregate NVLink fabric versus 400 Gb/s/NIC InfiniBand NDR is a peak ratio of ${\sim}300\times$. Moving from cross-rack EP-32 to intra-rack EP-72 is a regime change, not an optimization.
+At $L=4096$, $K=8$, $D=7168$, FP8 ($b=8$), one MoE layer pushes ${\sim}470$ MB of activation traffic. Multiply by the number of MoE layers (DeepSeek-V3 has 58 of 61), divide by available bandwidth — and that bandwidth is the *hard* number because all-to-all gets no $(P-1)/P$ identity to amortize against. GB200 NVL72's 130 TB/s aggregate NVLink fabric versus 400 Gb/s/NIC InfiniBand NDR is a peak ratio of ${\sim}300\times$. Moving from cross-rack EP-32 to intra-rack EP-72 is a regime change, not an optimization.
 
 **Load imbalance is a tail problem.** A balancing loss bounds the expected token count per expert; at any given iteration some experts are 5×–10× hotter. The all-to-all completes only when every rank has finished; the slowest rank — typically the one with the hot expert — sets the layer's wall-clock.
 

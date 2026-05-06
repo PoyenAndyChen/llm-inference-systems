@@ -57,7 +57,7 @@ The source is organized into a single C++ extension, `kt_kernel_ext`, under `kt-
 
 **`kt-kernel/cpu_backend/`** contains the CPU execution substrate. `cpuinfer.h` and `worker_pool.cpp` implement a NUMA-aware thread pool that pins threads to CPU sockets to maximize DRAM locality. `task_queue.cpp` enqueues MoE expert work items. The critical synchronization primitive is `submit_with_cuda_stream`: a CUDA stream callback that fires when the GPU finishes routing, submits the cold-expert tasks to the CPU thread pool, and allows the GPU to proceed to the next layer's prologue while the CPU expert path is in flight. CUDA-event-based synchronization merges the results before the combine step.
 
-**`kt-kernel/operators/amx/`** contains the hand-written AMX MoE kernels: `awq-moe.hpp` (AWQ INT4 weights), `bf16-moe.hpp` (BF16 weights on AVX-512_BF16), `fp8-moe.hpp` and `fp8-perchannel-moe.hpp` (FP8 per-tensor and per-channel variants), `k2-moe.hpp` (Kimi-K2-specific block-FP8 format), and `sft_moe.hpp` (backward-compatible SFT variants). On machines without AMX, `kt-kernel/operators/llamafile/` provides a fallback path via Mozilla's llamafile SGEMM kernels — the same library used for CPU GEMM in llama.cpp.
+**`kt-kernel/operators/amx/`** contains the hand-written AMX MoE kernels: `awq-moe.hpp` (AWQ INT4 weights), `bf16-moe.hpp` (BF16 weights on AVX-512_BF16), `fp4-moe.hpp` (FP4 weight-only MoE), `fp8-moe.hpp` and `fp8-perchannel-moe.hpp` (FP8 per-tensor and per-channel variants), `k2-moe.hpp` (Kimi-K2-specific block-FP8 format), and `sft_moe.hpp` (backward-compatible SFT variants). On machines without AMX, `kt-kernel/operators/llamafile/` provides a fallback path via Mozilla's llamafile SGEMM kernels — the same library used for CPU GEMM in llama.cpp.
 
 **`kt-kernel/python/experts.py`** is the user-facing Python wrapper. `KTMoEWrapper` is a factory that selects among `AMXMoEWrapper`, `NativeMoEWrapper`, `LlamafileMoEWrapper`, and `GeneralMoEWrapper` based on the `method` parameter. Valid methods include `"AMXINT4"`, `"AMXINT8"`, `"FP8"`, `"FP8_PERCHANNEL"`, `"BF16"`, `"MXFP4"`, `"GPTQ_INT4"`, and `"LLAMAFILE"`. The selection is done at load time; the kernel path is fixed per session.
 
@@ -79,7 +79,7 @@ Version 0.6 (October 2025) made a significant strategic shift. The standalone kt
 
 The motivation is architectural: SGLang provides the request scheduler, KV cache manager, multi-GPU tensor parallelism, and the OpenAI-compatible serving API — all of the components that ktransformers did not need to reinvent and that ktransformers' single-process model was poorly suited to provide at production scale. ktransformers provides what SGLang cannot: the AMX-accelerated CPU MoE expert path that makes trillion-parameter sparse models run on hardware that has no other viable option.
 
-This is the production deployment pattern as of May 2026: `max serve` or `python -m sglang.launch_server` with ktransformers CPU expert offloading enabled. The standalone ktransformers server (the `ktransformers.server` module) still exists but is not the recommended path.
+This is the production deployment pattern as of May 2026: `python -m sglang.launch_server` with ktransformers CPU expert offloading enabled. The standalone ktransformers server (the `ktransformers.server` module) still exists but is not the recommended path.
 
 ### 1.5 Performance claims
 

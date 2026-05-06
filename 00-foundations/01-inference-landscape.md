@@ -185,7 +185,7 @@ Three open-source serving engines dominate the conversation in 2026. None is a g
 
 A fourth name worth mentioning: **TGI (Text Generation Inference)** from Hugging Face is no longer accepting major upstream features as of March 2026; HF officially recommends vLLM/SGLang for net-new deployments. Existing TGI deployments remain a non-trivial enterprise installed base, and for those operators the engine is supported, just frozen in feature scope.
 
-The full feature matrix across engines and orchestrators — vLLM, SGLang, TRT-LLM, llama.cpp, MLX, mistral.rs, lmdeploy, MAX, DeepSpeed-MII, TGI — is in [§80/00-overview-comparison](../80-oss-deep-dives/00-overview-comparison.md), with an engine-selection guide. Cluster orchestrators sit one layer above: NVIDIA Dynamo, llm-d, AIBrix, Ray Serve LLM, BentoCloud — covered in [§80/05-dynamo-llmd-aibrix](../80-oss-deep-dives/05-dynamo-llmd-aibrix.md).
+The full feature matrix across engines and orchestrators — vLLM, SGLang, TRT-LLM, llama.cpp, MLX, mistral.rs, lmdeploy, MAX, DeepSpeed-MII, TGI — is in [§80/00-overview-comparison](../80-oss-deep-dives/00-overview-comparison.md), with an engine-selection guide. Cluster orchestrators sit one layer above: NVIDIA Dynamo, llm-d, AIBrix, Ray Serve LLM, BentoCloud — covered in [§80/05-nvidia-dynamo](../80-oss-deep-dives/05-nvidia-dynamo.md).
 
 ## 6. How the field measures itself
 

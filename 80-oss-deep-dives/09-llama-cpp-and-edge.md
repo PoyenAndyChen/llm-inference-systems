@@ -96,7 +96,7 @@ The CPU backend contains the most differentiated kernel tree. Under `ggml/src/gg
 - **`arch/`** — per-ISA kernel implementations. x86 paths include AVX2 dot-product loops, AVX-512 variants with VNNI (integer dot), VBMI (byte permute), and BF16 accumulation, and AMX-INT8/AMX-BF16 tile kernels for SPR and EMR. ARM paths include NEON (4×4 byte GEMM), SVE (scalable vector), the `dotprod` extension (UDOT/SDOT), and `i8mm` (FEAT\_I8MM, 8×8 signed GEMM). RISC-V uses RVV (v1.0); POWER uses VSX; s390x is present for IBM Z CPU-side ops when zDNN is unavailable.
 - **`kleidiai/`** — integration of Arm's [KleidiAI](https://gitlab.arm.com/kleidi/kleidiai) library, which ships hand-tuned Q4\_0 GEMM microkernels for Neoverse V2 and Cortex-X4. KleidiAI is updated independently of llama.cpp and provides silicon-specific tuning for modern Arm server and mobile cores.
 - **`amx/`** — Intel AMX tile kernels. AMX introduces a 2D register tile abstraction (`TMUL`, `TDPBSSD`, `TDPBF16PS`) operating on 16×64-byte tiles; the kernels here map Q4/Q8 quantized GEMM onto tile ops for the INT8 and BF16 accumulation paths.
-- **`llamafile/`** — high-performance SGEMM kernels imported from Mozilla's llamafile project. These are the fallback FP32 matmul path on CPUs without specialized quant acceleration and are used by ktransformers as well (see §80/07).
+- **`llamafile/`** — high-performance SGEMM kernels imported from Mozilla's llamafile project. These are the fallback FP32 matmul path on CPUs without specialized quant acceleration and are used by ktransformers as well (see §80/10).
 - **`hbm.cpp`** — a High Bandwidth Memory-aware allocator that preferentially places weight tensors in the HBM pool on Xeon Max (Sapphire Rapids HBM) processors, avoiding the DDR5 bandwidth cap on CPU-bound decodes.
 - **`repack.cpp`** — runtime weight repacking. Some ISA-specific kernels require a different physical memory layout than the standard ggml block-quant layout (e.g., block-interleaved Q4\_0 for AVX-512 dot-product). Repacking happens once at model load and is cached.
 
@@ -116,7 +116,7 @@ GGUF (GPT-Generated Unified Format) replaced the older GGML container format and
 
 **Self-describing tensor table.** Each tensor record in the GGUF header carries its name, `ggml_type` (the quantization format enum), shape, and byte offset. No separate `config.json` or `model.safetensors.index.json` is needed at runtime. The model loader (`src/llama-model.cpp`) reads the tensor table directly and constructs the compute graph using tensor names as keys.
 
-**Tokenizer-in-file.** SentencePiece (BPE/unigram), WordPiece, and custom BPE vocabularies are serialized into the GGUF metadata section along with merge tables, special token IDs, and chat templates. `convert_hf_to_gguf.py` (in `gguf-py/`) is the canonical Hugging Face→GGUF bridge; it handles architecture detection, vocab extraction, and per-tensor type assignment. The conversion script supports over 60 model architectures as of HEAD; each architecture maps its parameter names to canonical GGUF tensor names so the runtime can load models from any HF checkpoint with a single code path.
+**Tokenizer-in-file.** SentencePiece (BPE/unigram), WordPiece, and custom BPE vocabularies are serialized into the GGUF metadata section along with merge tables, special token IDs, and chat templates. `convert_hf_to_gguf.py` is the canonical Hugging Face→GGUF bridge; it handles architecture detection, vocab extraction, and per-tensor type assignment. The conversion script supports over 60 model architectures as of HEAD; each architecture maps its parameter names to canonical GGUF tensor names so the runtime can load models from any HF checkpoint with a single code path.
 
 **Per-tensor quantization tags.** Each tensor independently records its `ggml_type`. A single GGUF file can therefore mix formats: the `_M` quantization recipes (e.g., Q4\_K\_M) encode the convention that attention norms and output projection use Q6\_K while feed-forward body tensors use Q4\_K, without needing a separate manifest. This means a GGUF file can be partially re-quantized — replacing a subset of tensors with a different format — by rewriting only those tensor records and updating the data region, without touching the metadata or tokenizer sections.
 
@@ -124,7 +124,7 @@ GGUF (GPT-Generated Unified Format) replaced the older GGML container format and
 
 The Python authoring and reading tools in `gguf-py/gguf/` (`gguf_writer.py`, `gguf_reader.py`) are sufficient for writing custom GGUF files programmatically — for example, to package a custom architecture or a non-HF model checkpoint. The `gguf_writer.py` API follows a builder pattern: open a writer, add metadata keys (architecture, context length, RoPE base, etc.), add tensor entries with name/data/type, and close to flush the binary. The resulting file is directly loadable by any GGUF-compatible runtime, including llama.cpp, mistral.rs (via its GGUF loader), and the HF `gguf` Python library.
 
-GGUF versioning is backward-compatible by design. Version 1 (the original) had a bug in array-type metadata handling; version 2 fixed this and is the current production format. Version 3 added a `general.file_type` integer field for the "ftype" shorthand. Readers check the version field in the header and reject files with a version number they do not understand, so old readers will never silently misparse new files — they will fail explicitly.
+GGUF versioning is backward-compatible by design. Version 1 (the original) had a bug in array-type metadata handling; version 2 fixed this. Version 3 (the current production format) added a `general.file_type` integer field for the "ftype" shorthand. Readers check the version field in the header and reject files with a version number they do not understand, so old readers will never silently misparse new files — they will fail explicitly.
 
 ### 1.4 Quantization formats
 
@@ -268,7 +268,7 @@ On NVIDIA hardware, by contrast, even a GPU with 80 GB of HBM has a 64 GB/s PCIe
 
 MLX is Apple's framework that makes this architectural advantage directly programmable, without requiring the user to manage Metal memory explicitly.
 
-To make this concrete with numbers: the M4 Ultra has 192 GB of LPDDR5X at ~800 GB/s aggregate bandwidth (Apple's figure; die-to-memory bandwidth, not PCIe-limited). An H100 SXM has 80 GB of HBM3 at ~3.35 TB/s, but the H100's host system connects via PCIe 5.0 at 128 GB/s. For an inference workload where the KV cache must grow from 0 to 32K tokens during a single request, the KV writes are ~$2 \times \text{layers} \times d_h \times n_h \times T \times \text{dtype\_bytes}$. For a Llama 3.1 70B (80 layers, 64 heads, head dim 128, BF16): each new token adds $2 \times 80 \times 64 \times 128 \times 2 = 2.62$ MB. At 32K tokens the KV cache is 84 GB. On H100, all 84 GB are in HBM — no PCIe transfer needed since the KV cache never leaves the GPU. On a Mac Studio M4 Ultra, the same 84 GB is in the same unified LPDDR5X pool as the weight tensors; the CPU and GPU both access it at 800 GB/s. The comparison is not H100 vs M4 Ultra for throughput (H100 wins at scale) — it is whether the M4 Ultra is a viable single-node inference target for large models at practical context lengths, and the answer is yes: 84 GB KV + 42 GB weights = 126 GB, fitting in 192 GB with 66 GB headroom for multiple concurrent contexts.
+To make this concrete with numbers: the M4 Ultra has 192 GB of LPDDR5X at ~800 GB/s aggregate bandwidth (Apple's figure; die-to-memory bandwidth, not PCIe-limited). An H100 SXM has 80 GB of HBM3 at ~3.35 TB/s, but the H100's host system connects via PCIe 5.0 at 128 GB/s. For an inference workload where the KV cache must grow from 0 to 32K tokens during a single request, the KV writes are ~$2 \times \text{layers} \times n_{kv\_heads} \times d_h \times T \times \text{dtype\_bytes}$. For a Llama 3.1 70B (80 layers, 8 KV heads via GQA, head dim 128, BF16): each new token adds $2 \times 80 \times 8 \times 128 \times 2 = 327{,}680\ \text{bytes} \approx 0.32\ \text{MB}$. At 32K tokens the KV cache is $0.32\ \text{MB} \times 32{,}768 \approx 10.5\ \text{GB}$. On H100, all 10.5 GB are in HBM — no PCIe transfer needed since the KV cache never leaves the GPU. On a Mac Studio M4 Ultra, the same 10.5 GB is in the same unified LPDDR5X pool as the weight tensors; the CPU and GPU both access it at 800 GB/s. The comparison is not H100 vs M4 Ultra for throughput (H100 wins at scale) — it is whether the M4 Ultra is a viable single-node inference target for large models at practical context lengths, and the answer is yes: ~10.5 GB KV + 42 GB weights ≈ 52.5 GB, fitting in 192 GB with ample headroom for multiple concurrent contexts.
 
 ### 2.2 Lazy graph and unified memory
 
@@ -512,7 +512,7 @@ A more realistic MoE topology for DeepSeek-V3 (671B parameters, 256 experts, 61 
 
 In this configuration the attention mechanism runs at full GPU throughput, while the expert FFN weights (the bulk of the 671B parameters in a sparse MoE) reside in host RAM and are dispatched to CPU threads. At decode time, each token activates at most 8 of 256 experts; the CPU only needs to load the weight tiles for those 8 experts per layer per step, so the effective memory bandwidth demand on the CPU is proportional to $\text{top-k} / \text{n\_experts}$ — 3.1% of the expert parameter mass per step. The `ggml-rpc`-style RPC backend approach in llama.cpp serves a similar purpose for models split across machines, but the per-layer granularity and quant-per-layer in mistral.rs's topology system makes it possible to make different quality/memory trade-offs within a single model.
 
-The topology system makes mistral.rs practical for oversized models on consumer hardware in a way that neither llama.cpp (which uses a simpler layer-split strategy) nor vLLM (which does not target heterogeneous CPU+GPU at this granularity) directly addresses. See [§20/01](../20-distributed-inference/01-model-parallelism.md) for the distributed context in which this style of deployment arises.
+The topology system makes mistral.rs practical for oversized models on consumer hardware in a way that neither llama.cpp (which uses a simpler layer-split strategy) nor vLLM (which does not target heterogeneous CPU+GPU at this granularity) directly addresses. See [§20/01](../20-distributed-inference/01-parallelism-strategies.md) for the distributed context in which this style of deployment arises.
 
 ### 3.6 AnyMoE
 
@@ -526,13 +526,13 @@ It is included here because the architecture (`src/amoe/`) is a notable in-tree 
 
 mistral.rs implements speculative decoding in `mistralrs-core/src/pipeline/speculative.rs`. The draft model is loaded through the same pipeline system as the target model — it can be a GGUF model, an HF safetensors model, or a UQFF file; the draft and target tokenizers must agree. The verification step runs the target model on the draft sequence in a single batched forward pass and applies rejection sampling to determine how many draft tokens to accept. Unlike llama.cpp's server-level implementation, speculative decoding in mistral.rs is a pipeline-level feature, meaning it integrates with the paged KV cache and continuous batching scheduler — speculative decoding and multi-user serving are not mutually exclusive.
 
-### 3.9 Agentic and tool-use features
+### 3.8 Agentic and tool-use features
 
 mistral.rs has a more built-in agentic feature set than the other engines in this chapter. `mistralrs-core/src/tools/` implements the server-side tool dispatch loop: the server can route tool calls to registered handlers without round-tripping to a client-side orchestration framework. `mistralrs-core/src/search/` provides a web search tool that the model can invoke directly during generation. `mistralrs-mcp/` implements the MCP (Model Context Protocol) client — the protocol introduced by Anthropic for structured tool communication between models and external systems — as a first-class feature. These capabilities are shipped in the main binary, not as optional add-ons.
 
 The practical effect is that a single `mistralrs serve` deployment can handle agentic tasks (tool calls, web search, MCP-connected data sources) without a separate orchestration server. For air-gapped or embedded deployments where deploying a full orchestration framework (LangChain, LlamaIndex, or a custom agent loop) is not practical, this is a meaningful reduction in infrastructure complexity. The reasoning parsers (`src/reasoning_parsers/`) support structured chain-of-thought extraction from reasoning-capable models (DeepSeek-R1 style `<think>` tags, Qwen3 reasoning output) and can expose the thinking trace alongside the final output in the API response, enabling downstream consumers to inspect the model's reasoning without post-processing the raw text.
 
-### 3.10 Hardware coverage and format support summary
+### 3.9 Hardware coverage and format support summary
 
 | | llama.cpp | MLX | mistral.rs |
 |---|---|---|---|
@@ -548,12 +548,12 @@ The practical effect is that a single `mistralrs serve` deployment can handle ag
 | **Vulkan** | Vulkan | — | — |
 | **WebGPU** | WebGPU | — | — |
 | **Distributed** | RPC (tensor serving) | JACCL/NCCL/MPI/ring | NCCL/TCP ring |
-| **GGUF** | Native (authoring+runtime) | Read-only via convert | Runtime (GGUF loader) |
+| **GGUF** | Native (authoring+runtime) | — | Runtime (GGUF loader) |
 | **HF safetensors** | via convert | Native | Native |
 | **UQFF** | — | — | Native (own format) |
 | **K-quants** | Q2–Q8\_K, IQ1–IQ4 | — | GGUF K-quants via ISQ |
-| **FP8** | — | MXFP8/NVFP4 | Scalar/blockwise/per-tensor/per-vector |
-| **MXFP4** | MXFP4, NVFP4 | — | MXFP4 |
+| **FP8** | — | MXFP8 | Scalar/blockwise/per-tensor/per-vector |
+| **MXFP4** | MXFP4, NVFP4 | NVFP4 | MXFP4 |
 | **Paged attention** | No | No | Yes (CUDA V1/V2 + Metal) |
 | **Tensor parallelism** | Layer split (no NCCL) | mlx.distributed | NCCL / TCP ring |
 | **Python runtime required** | No | Yes (mlx-lm) | No (pyo3 optional) |

@@ -150,15 +150,14 @@ The scorer plugins in `pkg/epp/framework/plugins/scheduling/scorer/`:
 | `session-affinity-scorer` | Prefers to route follow-up turns of a conversation to the same pod, increasing KV reuse across turns |
 | `no-hit-lru-scorer` | Scores pods with the least recently used cache entries lower, steering new requests to pods more likely to have cache space |
 | `loadaware`, `contextlengthaware`, `runningrequests` | Additional load and context-size aware scorers for fine-grained balancing |
-| `random-scorer` | Uniform random; used as a fallback or for A/B traffic splitting |
 
 ### Pickers
 
 After scoring, a picker selects one pod from the ranked list. Picker plugins in `pkg/epp/framework/plugins/scheduling/picker/`:
 
-- **`MaxScorePicker`** — deterministically selects the highest-scoring pod; optimal for scenarios where the scoring model is trusted and load is already balanced by other scorers
-- **`WeightedRandomPicker`** — samples proportionally to score (Boltzmann-style lottery); avoids thundering-herd on a single hot pod while still biasing toward high-scoring candidates; the default in most production profiles
-- **`LeastLoadPicker`** — among the top-K pods by score, picks the pod with the lowest current load metric; useful when the scorer weights emphasize cache affinity but some load leveling is still desired
+- **`max-score-picker`** — deterministically selects the highest-scoring pod; optimal for scenarios where the scoring model is trusted and load is already balanced by other scorers
+- **`weighted-random-picker`** — samples proportionally to score (Boltzmann-style lottery); avoids thundering-herd on a single hot pod while still biasing toward high-scoring candidates; the default in most production profiles
+- **`random-picker`** — uniform random selection; used as a fallback or for A/B traffic splitting
 
 ### Profile handlers
 

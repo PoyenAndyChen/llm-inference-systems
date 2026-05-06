@@ -14,7 +14,7 @@
 
 Production LLM serving exposes a mismatch between how compute is priced and how content is structured. System prompts, few-shot examples, retrieval passages, and multi-turn conversation prefixes are reused constantly across requests, across instances, and across time — yet every inference engine that performs its own in-process prefix caching discards that work when the request completes, the GPU is preempted, or the instance is scaled down. vLLM's radix cache [§10/07](../10-engine-core/07-prompt-prefix-caching.md) and SGLang's RadixAttention are excellent within a single process; they cannot reach across instance boundaries or survive restarts.
 
-LMCache, developed at the University of Chicago SKIR group and released in 2024, reframes KV cache reuse as a *Knowledge Delivery Network* problem: KV blocks are content-addressable objects that can be stored in, retrieved from, and promoted through any combination of DRAM, NVMe, Redis, and object storage. The library is implemented primarily in Python, with a small C++/CUDA core in `csrc/` for memory copies, position-encoding kernels, and the CacheGen arithmetic-coding kernels. It hooks into the inference engine via a thin connector interface (`KVConnectorBase_V1` in vLLM, `CacheBackend` in SGLang), requiring no changes to the scheduler or attention kernels. The compression component, CacheGen, was published at SIGCOMM 2024 [CacheGen] and established that arithmetic coding of per-layer KV tensors achieves 2–4× compression at negligible decode latency, making NVMe and network-bound tiers practically viable for hot system prompts.
+LMCache, developed at the University of Chicago SKIR group and released in 2024, reframes KV cache reuse as a *Knowledge Delivery Network* problem: KV blocks are content-addressable objects that can be stored in, retrieved from, and promoted through any combination of DRAM, NVMe, Redis, and object storage. The library is implemented primarily in Python, with a small C++/CUDA core in `csrc/` for memory copies, position-encoding kernels, and the CacheGen arithmetic-coding kernels. It hooks into the inference engine via a thin connector interface (`KVConnectorBase_V1` in vLLM) and `init_lmcache_engine` adapter functions in SGLang, requiring no changes to the scheduler or attention kernels. The compression component, CacheGen, was published at SIGCOMM 2024 [CacheGen] and established that arithmetic coding of per-layer KV tensors achieves 2–4× compression at negligible decode latency, making NVMe and network-bound tiers practically viable for hot system prompts.
 
 The key insight that distinguishes LMCache from engine-internal prefix caching is *time independence*: a chunk of KV computed at 3 pm is valid at 4 pm because the model weights have not changed and the token content is identical. Engine-internal caches are scoped to the lifetime of one serving process; LMCache externalizes the cache so its lifetime matches the deployment, not the process. This means a cached system prompt computed by a vLLM instance that was subsequently scaled down is still available to the instances that replaced it, and a prefill worker's KV output is already staged in the decode cluster's NIXL memory before the decode request is routed there.
 
@@ -58,10 +58,11 @@ flowchart LR
       B4["4. NixlStorageBackend\n(NIXL remote DRAM)"]
       B5["5. LocalDiskBackend\n(NVMe async I/O)"]
       B6["6. GdsBackend\n(NVMe via cuFile)"]
-      B7["7. RemoteBackend\n(Redis / S3 / Mooncake / ...)"]
+      B7["7. MaruBackend\n(vendor backend, maru_path)"]
+      B8["8. RemoteBackend\n(Redis / S3 / Mooncake / ...)"]
     end
 
-    SMgr --> B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7
+    SMgr --> B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7 --> B8
 ```
 
 ### The storage tier stack
@@ -80,7 +81,9 @@ flowchart LR
 
 **Tier 6 — GdsBackend.** Enabled by `gds_path`. Uses NVIDIA GPUDirect Storage (`cuFile`) to transfer KV data between GPU HBM and NVMe without routing through a CPU bounce buffer. The `CuFileMemoryAllocator` in `lmcache/v1/memory_management.py` handles the required `cuFileBufRegister` calls on the pinned CPU buffers — even GDS transfers stage through CPU-registered memory at the kernel level, but the CPU copy step is eliminated from the software path. Requires the `libcufile` driver and a compatible NVMe controller.
 
-**Tier 7 — RemoteBackend.** One instance per `remote_storage_plugins` entry (the legacy `remote_url` config creates a single entry). Each entry wraps a connector from `lmcache/v1/storage_backend/connector/`:
+**Tier 7 — MaruBackend.** Enabled by `maru_path` configuration. A vendor backend that provides an additional storage path for specialized hardware or software integrations.
+
+**Tier 8 — RemoteBackend.** One instance per `remote_storage_plugins` entry (the legacy `remote_url` config creates a single entry). Each entry wraps a connector from `lmcache/v1/storage_backend/connector/`:
 
 | Connector | Notes |
 |---|---|
@@ -365,7 +368,7 @@ For scheduled maintenance or cluster failover, LMCache provides `set_hot_cache` 
 
 ---
 
-## Current Production State
+## Current production state
 
 LMCache v0.4.4 is the leading open-source hierarchical KV cache library for deployments where per-request in-process prefix caching is insufficient — chiefly disaggregated P/D serving and multi-instance shared-prompt scenarios. The vLLM V1 `KVConnector` path (`LMCacheConnectorV1Dynamic`) is the production-blessed integration: it is actively maintained, has compatibility shims spanning vLLM 0.8.5 through 0.18.x, and the layerwise hook design gives it a well-characterized overhead profile. SGLang integration via `sglang_adapter.py` is actively maintained as an L3 HiCache backend. TensorRT-LLM integration is functional but experimental. The common production deployment shape is vLLM ↔ LMCache (in-process) ↔ tier list ending at Mooncake Store or Redis, with CacheGen compression enabled on the NVMe and remote tiers.
 

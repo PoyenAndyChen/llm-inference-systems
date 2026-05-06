@@ -5,12 +5,12 @@
 - Describe Dynamo's three-plane architecture (request, control, storage) and why the Rust core is the right implementation language for the hot path
 - Explain the KV router: how the global RadixTree indexes KV blocks across all workers and how the cost function ($w \cdot \text{prefill} + \text{decode}$) makes routing decisions
 - Describe the KVBM (KV Block Manager) four-tier hierarchy (G1–G4) and what each tier represents
-- Explain how NIXL is used as the transfer fabric and what GAIE (Gateway Inference Engine) does in the Kubernetes ingress path
+- Explain how NIXL is used as the transfer fabric and what GAIE (Gateway API Inference Extension) does in the Kubernetes ingress path
 - State how Dynamo integrates with vLLM and TRT-LLM workers
 
 Traditional load balancers route inference requests by queue depth or CPU utilization — signals that are entirely blind to the most expensive part of an LLM request: the prefill computation. When a model has already computed the key-value tensors for a long system prompt, routing the next request with the same prompt to a *different* worker discards that work and forces a full recompute. NVIDIA Dynamo is the open-source control and routing plane that eliminates this waste at fleet scale. Rather than load-balancing requests across workers, Dynamo routes each request to the worker that already holds the KV prefix for that request, turning a cold prefill into a warm cache hit. The primary novelty is a **global radix tree** that tracks which KV blocks are resident on which workers, updated in real time as workers complete prefills and evict cache entries. This is the system-level analog of RadixAttention within a single SGLang or vLLM process — the same prefix-tree insight lifted from per-engine scope to fleet scope. The cost function that drives routing decisions is $\text{cost}(w) = \alpha \cdot N_{\text{prefill-miss}}(w) + N_{\text{decode}}$, where $\alpha$ encodes the relative expense of computing a prefill token versus a decode step; high $\alpha$ drives the router toward cache-hit maximization, low $\alpha$ toward load balance.
 
-Dynamo sits between the HTTP ingress and a pool of inference workers running vLLM, SGLang, or TensorRT-LLM. It is also NVIDIA's integration point for NIXL (NVIDIA Inference Xfer Library), the high-performance transport library that moves KV blocks between workers during disaggregated prefill/decode and between memory tiers during offload. Disaggregated prefill/decode (splitting the prompt processing and token generation onto separate GPU pods) is a first-class deployment mode: Dynamo's `PrefillRouter` selects a prefill worker, waits for KV computation, then dispatches to a separate decode worker along with the NIXL transfer metadata. The KV Block Manager (KVBM) provides a four-tier storage hierarchy — GPU HBM, host DRAM, local NVMe, and remote object storage — with NIXL as the transfer fabric across all four tiers. The system reached 1.0 GA in March 2026 and is the routing foundation for NVIDIA NIM deployments. The source lives at `ai-dynamo/dynamo`; the version surveyed here is v1.1.0-rc11 (commit `9c54b4d3`). The repo is a polyglot monorepo: Rust for the hot path, Python for engine-adapter glue, and Go for the Kubernetes operator.
+Dynamo sits between the HTTP ingress and a pool of inference workers running vLLM, SGLang, or TensorRT-LLM. It is also NVIDIA's integration point for NIXL (NVIDIA Interchange Library), the high-performance transport library that moves KV blocks between workers during disaggregated prefill/decode and between memory tiers during offload. Disaggregated prefill/decode (splitting the prompt processing and token generation onto separate GPU pods) is a first-class deployment mode: Dynamo's `PrefillRouter` selects a prefill worker, waits for KV computation, then dispatches to a separate decode worker along with the NIXL transfer metadata. The KV Block Manager (KVBM) provides a four-tier storage hierarchy — GPU HBM, host DRAM, local NVMe, and remote object storage — with NIXL as the transfer fabric across all four tiers. The system reached 1.0 GA in March 2026 and is the routing foundation for NVIDIA NIM deployments. The source lives at `ai-dynamo/dynamo`; the version surveyed here is v1.1.0-rc11 (commit `9c54b4d3`). The repo is a polyglot monorepo: Rust for the hot path, Python for engine-adapter glue, and Go for the Kubernetes operator.
 
 ---
 
@@ -262,7 +262,7 @@ The KVBM integrates with the router's global index through the connector layer (
 
 ## Part 4: NIXL — the transfer fabric
 
-NIXL (NVIDIA Inference Xfer Library, internally "NVIDIA Interchange Library") is the low-level transport library Dynamo uses for all KV block movement: prefill-to-decode transfers in disaggregated serving, tier-to-tier offload within the KVBM, and remote G4 fetches. It is consumed as the `nixl-sys = "=0.10.1"` Rust crate (pinned in `lib/llm/Cargo.toml` behind the `block-manager` feature) and as the `nixl-cu12` Python wheel on the engine side.
+NIXL (NVIDIA Interchange Library) is the low-level transport library Dynamo uses for all KV block movement: prefill-to-decode transfers in disaggregated serving, tier-to-tier offload within the KVBM, and remote G4 fetches. It is consumed as the `nixl-sys = "=0.10.1"` Rust crate (pinned in `lib/llm/Cargo.toml` behind the `block-manager` feature) and as the `nixl-cu12` Python wheel on the engine side.
 
 The central Rust abstraction is `NixlAgent` (`lib/memory/src/nixl/agent.rs`), which wraps `nixl_sys::Agent`. The agent owns memory registration handles and an `XferRequest` pool. The API workflow is: register buffers (GPU or host memory) with the agent, establish connections to remote agents on other workers, then call `transfer()` to initiate an asynchronous DMA. NIXL returns immediately; completion is signaled through callbacks registered in `lib/kvbm-physical/src/transfer/notifications/nixl_status.rs` and `nixl_events.rs`.
 
@@ -289,7 +289,7 @@ For an alternative transfer architecture that avoids NIXL and instead designs th
 
 ---
 
-## Part 5: GAIE — Gateway Inference Engine
+## Part 5: GAIE — Gateway API Inference Extension
 
 Dynamo's Kubernetes ingress is handled by a plugin for the **GAIE** (Gateway API Inference Extension), the CNCF standard for inference-aware HTTP routing at the Kubernetes layer. The plugin lives in `deploy/inference-gateway/epp/` and implements the **EndpointPicker Protocol** (EPP): the standard contract by which a Kubernetes Gateway delegates endpoint selection to an external sidecar process over `ext-proc`.
 
@@ -321,7 +321,7 @@ For llm-d's EPP approach — the *reference implementation* of the GIE standard,
 
 ## Part 6: Kubernetes operator and CRDs
 
-The Dynamo Kubernetes operator (`deploy/operator/`, Go, controller-runtime) manages inference graph lifecycle through four custom resources defined in `deploy/operator/api/v1beta1/` and `v1alpha1/`.
+The Dynamo Kubernetes operator (`deploy/operator/`, Go, controller-runtime) manages inference graph lifecycle through five custom resources defined in `deploy/operator/api/v1beta1/` and `v1alpha1/`.
 
 **`DynamoGraphDeployment` (DGD)** is the top-level resource. It describes a complete prefill/decode graph: the set of component types (frontend, router, prefill workers, decode workers, planner), per-component replica counts, model reference, NIXL transfer endpoint advertisement, and optionally an EPP plugin to attach. Each component is specified as a `DynamoComponentDeploymentSharedSpec`. At most one `epp` component is allowed per DGD. The DGD is the unit of deployment for a complete serving configuration; changing the DGD triggers a reconcile loop that brings all child resources into the desired state.
 

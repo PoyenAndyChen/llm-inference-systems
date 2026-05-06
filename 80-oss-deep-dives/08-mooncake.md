@@ -234,7 +234,7 @@ The `MountSegment` RPC is how clients join the pool. Each `RealClient` calls `Ma
 
 Buffer-mode `Get` / `Put` and `BatchGet` / `BatchPut` are the main interfaces; slice-mode APIs are available for large objects that span multiple RDMA regions. `ResourceTracker` is a singleton that prevents double-registration of the same buffer region.
 
-With tensor-parallelism degree $T$, a typical deployment runs one `RealClient` per inference instance plus one `DummyClient` per TP rank — so a TP=8 deployment has one RealClient and eight DummyClients per node.
+With tensor-parallelism degree $T$, a typical deployment runs one `RealClient` per inference instance plus one `DummyClient` per TP rank — so a TP=8 deployment has one RealClient and eight DummyClients per inference instance.
 
 ### DummyClient
 
@@ -286,7 +286,7 @@ Replication is *best-effort* with respect to replica count. `ReplicateConfig.rep
 
 ## Part 3: Mooncake in the disaggregated P/D flow
 
-The end-to-end lifecycle for a prefill/decode disaggregated request, using Mooncake as the KV transport layer, proceeds as follows. See [§20](../20-distributed-inference/) for the disaggregated serving architecture.
+The end-to-end lifecycle for a prefill/decode disaggregated request, using Mooncake as the KV transport layer, proceeds as follows. See [§20/02](../20-distributed-inference/02-prefill-decode-disagg.md) for the disaggregated serving architecture.
 
 **Step 1 — Prefill completes.** The prefill worker runs the forward pass; KV tensors for all layers are in GPU HBM, registered with TransferEngine via `registerLocalMemory`.
 
@@ -368,7 +368,7 @@ Measured on the Kimi K2 128×H200 deployment (128-worker EP degree, July 2025), 
 
 This work is directly analogous to DeepSeek's DeepEP (`dispatch`/`combine` kernels with IBGDA), released in early 2025. Both Mooncake-EP and DeepEP address the same NCCL scheduling mismatch, with similar API shapes; the `mooncake-ep/include/mooncake_ep_api.cuh` header parallels DeepEP's interface.
 
-Connect to [§20](../20-distributed-inference/) for MoE EP fundamentals and the broader distributed inference landscape.
+Connect to [§20/03](../20-distributed-inference/03-moe-inference.md) for MoE EP fundamentals and the broader distributed inference landscape.
 
 ---
 

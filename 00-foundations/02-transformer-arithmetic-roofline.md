@@ -127,13 +127,13 @@ Bytes per token (FP16) and total KV-cache footprint at $S = 32{,}768$ and $S = 1
 
 | Model | $L$ | KV layout | bytes/token/layer | bytes/token | KV at $S{=}32$k | KV at $S{=}128$k |
 |---|---|---|---|---|---|---|
-| Llama-3.1-8B | 32 | GQA, $H_{\text{kv}}{=}8$, $d_h{=}128$ | 4 096 | 131 072 | 4.0 GB | 16.0 GB |
-| Llama-3.1-70B | 80 | GQA, $H_{\text{kv}}{=}8$, $d_h{=}128$ | 4 096 | 327 680 | 10.0 GB | 40.0 GB |
+| Llama-3.1-8B | 32 | GQA, $H_{\text{kv}}{=}8$, $d_h{=}128$ | 4 096 | 131 072 | 4.3 GB | 17.2 GB |
+| Llama-3.1-70B | 80 | GQA, $H_{\text{kv}}{=}8$, $d_h{=}128$ | 4 096 | 327 680 | 10.7 GB | 43.0 GB |
 | Llama-3.1-405B | 126 | GQA, $H_{\text{kv}}{=}8$, $d_h{=}128$ | 4 096 | 516 096 | 15.8 GB | 63.0 GB |
 | Mistral 7B v0.3 | 32 | GQA, $H_{\text{kv}}{=}8$, $d_h{=}128$ | 4 096 | 131 072 | 4.0 GB | 16.0 GB |
-| DeepSeek-V3 (MLA) | 61 | $d_c{=}512$, $d_h^{R}{=}64$ | 1 152 | 70 272 | 2.15 GB | 8.6 GB |
+| DeepSeek-V3 (MLA) | 61 | $d_c{=}512$, $d_h^{R}{=}64$ | 1 152 | 70 272 | 2.30 GB | 9.21 GB |
 
-The dense-vs-MLA gap is large at 128k context: a single Llama-3.1-70B request at 128k consumes 40 GB of KV cache, half an H100's HBM. A single DeepSeek-V3 request at the same context fits in under 9 GB. This ratio determines how many concurrent long-context requests an engine can hold in memory, and therefore the practical batch size at which decode operates [see §10/02-paged-kv-memory](../10-engine-core/02-paged-kv-memory.md), [see §30/01-kv-compression](../30-kv-cache/01-kv-compression.md).
+The dense-vs-MLA gap is large at 128k context: a single Llama-3.1-70B request at 128k consumes 43 GB of KV cache, just over half an H100's HBM. A single DeepSeek-V3 request at the same context fits in under 10 GB. This ratio determines how many concurrent long-context requests an engine can hold in memory, and therefore the practical batch size at which decode operates [see §10/02-paged-kv-memory](../10-engine-core/02-paged-kv-memory.md), [see §30/01-kv-compression](../30-kv-cache/01-kv-compression.md).
 
 These numbers are at FP16. KV quantization to FP8, INT8, or INT4 [see §10/04-quantization](../10-engine-core/04-quantization.md) compresses the cache by the bit-ratio; FP8 KV halves the table above, and 4-bit KV (KIVI, KVQuant, TurboQuant) quarters it. The information-theoretic floor is approached by TurboQuant ([2504.19874](https://arxiv.org/abs/2504.19874), Google, ICLR 2026) at ~3.5 bits/channel for parity quality.
 
@@ -246,7 +246,7 @@ A prompt $[t_1, \ldots, t_{L_P}]$ enters the engine as a single forward pass tha
 
 Compute character: GEMM-dominated, compute-bound, attention quadratic at long context. Arithmetic intensity is on the order of $L_P$ (Section 3.3). A single H100 at 989 TFLOP/s FP16 fully utilized would take $\approx 0.58$ ms to prefill 1024 tokens of a 70B model ($2 \cdot 70 \times 10^9 \cdot 1024 / 989 \times 10^{12}$); in practice prefill achieves 60–75% of peak depending on kernel and prompt distribution.
 
-Memory requirement: the entire prompt's KV cache must be allocated before decode can begin. For a 128k-context Llama-3.1-70B request, that is 40 GB of cache reserved in HBM by the time the first token is emitted — half of an H100's 80 GB. This is the operational reason engines limit max-context per request and why long-context regimes need techniques like chunked prefill, KV offload, or sparse attention to remain feasible.
+Memory requirement: the entire prompt's KV cache must be allocated before decode can begin. For a 128k-context Llama-3.1-70B request, that is 43 GB of cache reserved in HBM by the time the first token is emitted — just over half of an H100's 80 GB. This is the operational reason engines limit max-context per request and why long-context regimes need techniques like chunked prefill, KV offload, or sparse attention to remain feasible.
 
 ### 5.2 Decode phase
 
@@ -254,7 +254,7 @@ Decode runs as an autoregressive loop. Each iteration processes one new token pe
 
 Compute character: GEMV at small $B$, GEMM at larger $B$ but with one of the inner dimensions equal to 1 in the position axis. Bandwidth-bound until $B$ approaches $B^{\star}$. Arithmetic intensity scales as $B$ for the weight-matmul part and is held down by the KV-read part as $S$ grows.
 
-Memory requirement: each step touches the entire KV cache *every layer*. At $S = 32{,}768$ tokens on Llama-3.1-70B, that is 10 GB read per step, or $\approx 30$ ms on H100 just for KV traffic at 3.35 TB/s — potentially exceeding the weight-load time and dominating the per-step latency. This is why long-context decode is a different regime from short-context decode: above $S^{\star}$ (Section 1.2), the attention term overtakes the weight term and the per-step bandwidth cost is no longer constant in $S$. KV compression and KV-aware kernels [see §30/01-kv-compression](../30-kv-cache/01-kv-compression.md), [see §10/01-attention-kernels](../10-engine-core/01-attention-kernels.md) attack exactly this.
+Memory requirement: each step touches the entire KV cache *every layer*. At $S = 32{,}768$ tokens on Llama-3.1-70B, that is 10 GB read per step, or $\approx 3$ ms on H100 just for KV traffic at 3.35 TB/s — potentially exceeding the weight-load time and dominating the per-step latency. This is why long-context decode is a different regime from short-context decode: above $S^{\star}$ (Section 1.2), the attention term overtakes the weight term and the per-step bandwidth cost is no longer constant in $S$. KV compression and KV-aware kernels [see §30/01-kv-compression](../30-kv-cache/01-kv-compression.md), [see §10/01-attention-kernels](../10-engine-core/01-attention-kernels.md) attack exactly this.
 
 ```mermaid
 flowchart LR
@@ -275,7 +275,7 @@ flowchart LR
     P6 --> D1
 ```
 
-The key invariant the diagram captures: decode reads the entire KV cache every step. A 128k-context Llama-3.1-70B request reads 40 GB per decode step — irrespective of how fast the weights load — which sets a hard floor on per-step latency at long context. KV compression, sparse attention (NSA/DSA), and tiered offload all exist to break this scaling.
+The key invariant the diagram captures: decode reads the entire KV cache every step. A 128k-context Llama-3.1-70B request reads 43 GB per decode step — irrespective of how fast the weights load — which sets a hard floor on per-step latency at long context. KV compression, sparse attention (NSA/DSA), and tiered offload all exist to break this scaling.
 
 ## 6. Worked numbers for major models
 
@@ -312,7 +312,7 @@ DeepSeek-V3: 671 B total parameters, 37 B active per token, MoE with 256 routed 
 
 - **Active parameter FLOP count:** decode ≈ $2 \cdot 37 \times 10^9 = 7.4 \times 10^{10}$ FLOPs/token — roughly 70B-class compute per token, despite the much larger total parameter count.
 - **Memory bandwidth:** at FP8, the active weights are $\approx 37$ GB; in EP=8, each GPU loads only its sharded experts plus the shared experts and attention/embedding (~5–8 GB/GPU). The bandwidth side of the roofline is set by the slowest of (a) per-GPU weight loads, (b) MLA cache reads, (c) all-to-all expert dispatch over NVLink.
-- **MLA KV cache:** 70 KB/token at FP16; at $S{=}32$k that is 2.15 GB/request — half of GQA-equivalent. This is what makes the production batch sizes that DeepSeek's serving stack sustains feasible on commodity 8× H100 nodes; DeepSeek's own [inference-system overview](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md) reports their daily-traffic numbers at scale.
+- **MLA KV cache:** 70 KB/token at FP16; at $S{=}32$k that is 2.30 GB/request — half of GQA-equivalent. This is what makes the production batch sizes that DeepSeek's serving stack sustains feasible on commodity 8× H100 nodes; DeepSeek's own [inference-system overview](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md) reports their daily-traffic numbers at scale.
 - **Expert routing overhead:** all-to-all dispatch and combine for 8-of-256 routing adds 5–15% of decode time depending on imbalance and DeepEP kernel choice, which is a separate roofline regime that lives in the MoE chapter.
 
 The full hardware spec table — Hopper, Blackwell, Rubin, Rubin CPX, Groq LPX, MI300X/MI355X, TPU v7 Ironwood, Trainium2/3 — is in [§70/01-nvidia-roadmap](../70-hardware/01-nvidia-roadmap.md). The numbers above use H100 SXM5 and B200 SXM as reference points; the same arithmetic applied to other accelerators gives an immediate first-order capacity estimate.
