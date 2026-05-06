@@ -140,7 +140,7 @@ The first term grows with the number of *distinct* adapters in the batch; the se
 
 ## 4. Tiered adapter cache and cold-start
 
-A production multi-tenant deployment cannot keep every adapter resident in HBM. A 70B base running with $r=16$, seven attach points, FP16 adapters is $\sim 60$ MB per adapter; an H100 with $\sim 50$ GB of headroom after weights and KV could hold roughly 800. Real catalogs run to tens of thousands of adapters, with a long-tailed access distribution.
+A production multi-tenant deployment cannot keep every adapter resident in HBM. An 8B base running with $r=16$, seven attach points, FP16 adapters is $\sim 60$ MB per adapter ($7 \times 2 \times 16 \times 4096 \times 32\text{ layers} \times 2\text{ bytes}$); an H100 with $\sim 50$ GB of headroom after weights and KV could hold roughly 800. A 70B base at the same rank would be $\sim 280$ MB per adapter, shrinking that figure to roughly 175. Real catalogs run to tens of thousands of adapters, with a long-tailed access distribution.
 
 The standard architecture is a three-tier cache:
 

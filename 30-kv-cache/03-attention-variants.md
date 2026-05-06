@@ -29,8 +29,8 @@ The summary footprint table is the chapter's central artifact:
 
 | Variant | KV per token per layer | Example (70B-class, $H{=}64$, $d_h{=}128$, FP16) | 128k-ctx, 80 layers |
 |---|---|---|---|
-| MHA | $2 b H d_h$ | 32 KB | $\approx 320$ GB |
-| GQA, $G{=}8$ | $2 b G d_h$ | 4 KB | $\approx 40$ GB |
+| MHA | $2 b H d_h$ | 32 KB | $\approx 336$ GB |
+| GQA, $G{=}8$ | $2 b G d_h$ | 4 KB | $\approx 42$ GB |
 | MQA | $2 b \cdot 1 \cdot d_h$ | 0.5 KB | $\approx 5$ GB |
 | MLA, $d_c{=}512$, $d_h^R{=}64$ | $b(d_c + d_h^R)$ | 1.15 KB | $\approx 9$ GB (61 layers) |
 | Sliding-window, $W{=}4096$ | unchanged, capped at $W$ | 4 KB/token × 4096 = 16 MB/layer | bounded, $\approx 1.3$ GB |
@@ -40,7 +40,7 @@ The summary footprint table is the chapter's central artifact:
 
 ## 2. MHA, MQA, GQA — same shape, fewer heads
 
-**MHA** is the baseline: each of $H$ query heads has its own $K$ and $V$ head. For 70B-class $H{=}64, d_h{=}128$, MHA at FP16 is 32 KB/token/layer; at 128k context across 80 layers that is 320 GB for a single request — four times an H100's HBM. MHA is no longer used for new long-context decoders above the 1B scale.
+**MHA** is the baseline: each of $H$ query heads has its own $K$ and $V$ head. For 70B-class $H{=}64, d_h{=}128$, MHA at FP16 is 32 KB/token/layer; at 128k context across 80 layers that is ~336 GB for a single request — four times an H100's HBM. MHA is no longer used for new long-context decoders above the 1B scale.
 
 **MQA** ([Shazeer 2019](https://arxiv.org/abs/1911.02150)) keeps one $K$ and one $V$ head, broadcast against all $H$ query heads. Cache drops to $2 b d_h$ — an $H\times$ reduction. MQA was first deployed at scale in PaLM and proved one shared KV head is functional at foundation-model scale, but consistently underperforms MHA on quality-sensitive tasks at smaller scales. MQA is rare in 2024–2026 frontier models.
 

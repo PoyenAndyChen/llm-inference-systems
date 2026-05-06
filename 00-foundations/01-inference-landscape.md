@@ -86,7 +86,7 @@ $$\text{TPOT}(B) \approx \frac{2P}{W \cdot B} \quad \text{(bandwidth-bound regim
 
 since each forward pass reads the entire weight tensor once but produces one new token per request in the batch. Doubling $B$ halves TPOT — until $B$ reaches the saturation batch $B^*$ where decode becomes compute-bound and the formula crosses into the compute-bound branch of the roofline:
 
-$$B^* \approx \frac{F_{\text{peak}} \cdot 2P / W}{2P} = \frac{F_{\text{peak}}}{W} \cdot \frac{1}{1}$$
+$$B^* \approx \frac{F_{\text{peak}} \cdot 2P / W}{2P} = \frac{F_{\text{peak}}}{W}$$
 
 For an H100 SXM5 (FP16 $F_{\text{peak}} \approx 989$ TFLOPS, $W \approx 3.35$ TB/s), $B^* \approx 295$. In practice $B^*$ is also gated by KV memory, so real workloads sit well below it and stay bandwidth-bound. This is the structural argument for continuous batching, paged KV memory, and the entire family of techniques that try to push effective batch size up without violating SLOs [see §10/03-batching-scheduling](../10-engine-core/03-batching-scheduling.md). The same arithmetic shows why HBM bandwidth gains (H100→H200 is +43%) translate near-linearly into decode throughput at fixed batch size, while raw FP4/FP8 FLOPs gains do not until batch size also grows. The full derivation lives in [§00/02-transformer-arithmetic-roofline](02-transformer-arithmetic-roofline.md).
 
