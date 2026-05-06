@@ -274,7 +274,7 @@ Native Tensor Core throughput: NVFP4 is 2× FP8 dense at the same silicon, by di
 
 ### 8.7 Power-per-token
 
-GB200 NVL72 dissipates ~120 kW at ~1.4 EFLOP/s NVFP4 (sustained at headline utilization). The compute-per-watt figure: $1.4 \times 10^{18} / 1.2 \times 10^5 \approx 12$ GFLOP/W. For a 70B-class model at NVFP4 decoding at batch 32, per-token energy at peak utilization: $E \approx 2 \cdot 70 \times 10^9 \cdot 32 / 12 \times 10^9 \approx 0.37$ J/token. At fleet utilization (~30–40% of peak in practice), the effective number is 1–1.5 J/token, and the rack at full duty produces on the order of $0.4 \times 10^6$ tok/s aggregate. These numbers anchor the rough $/M-token cost model: $120 kW × $0.05/kWh / $0.4 M tok/s = $4 / M-token power cost, with capex amortization separately.
+GB200 NVL72 dissipates ~120 kW at ~1.4 EFLOP/s NVFP4 (sustained at headline utilization). The compute-per-watt figure: $1.4 \times 10^{18} / 1.2 \times 10^5 \approx 12$ TFLOP/W. For a 70B-class model at NVFP4 decoding at batch 32, per-token energy at peak utilization: $E \approx 2 \cdot 70 \times 10^9 \cdot 32 / 12 \times 10^9 \approx 0.37$ J/token. At fleet utilization (~30–40% of peak in practice), the effective number is 1–1.5 J/token, and the rack at full duty produces on the order of $0.4 \times 10^6$ tok/s aggregate. These numbers anchor the rough $/M-token cost model: 120 kW × $0.05/kWh = $6/h power cost; at 0.4M tok/s that is 1,440 M tok/h, giving approximately **$0.004/M-token** in power cost alone — three orders of magnitude below the API list price of frontier models, confirming that capex amortization and margin dominate the total, not energy.
 
 ---
 

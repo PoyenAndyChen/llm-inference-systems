@@ -56,10 +56,9 @@ Engines that auto-tune chunk sizes or split-K attention assuming
 balanced workloads see those heuristics break.
 
 **KV memory pressure constrains batch sizing.** A 70B-class model with grouped
-query attention and FP16 KV holds roughly 160 KB of KV per token. A single
-30,000-token reasoning request occupies ~4.7 GB of HBM in KV alone; an 80GB
-H100 with weights at ~140GB sharded over 2 GPUs has room for only a handful of
-such requests *concurrently in steady state*. Either the engine pages KV to
+query attention and FP16 KV holds roughly 320 KB of KV per token (2 × 80 layers × 8 KV heads × 128 head_dim × 2 bytes). A single
+30,000-token reasoning request occupies ~9.4 GB of HBM in KV alone; an 80GB
+H100 in a TP=2 configuration holds ~70 GB of 70B weights, leaving ~10 GB for KV — enough for only 1–2 such requests at 9.4 GB each *concurrently in steady state*. Either the engine pages KV to
 host memory ([see §30-kv-cache](../30-kv-cache/)) or the running batch shrinks.
 The throughput-per-GPU number from chat-era benchmarks does not transfer.
 

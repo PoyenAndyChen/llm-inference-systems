@@ -143,13 +143,14 @@ For DeepSeek-V3 at FP8 with MLA and latent rank 512, the equivalent numbers are 
 
 ### 5.2 Transfer time
 
-At 400 GB/s (NDR IB ConnectX-7, single port), transferring $S_{\text{KV}}$ takes:
+At ~50 GB/s (NDR IB ConnectX-7 at 400 Gb/s per port; note 400 Gb/s ÷ 8 = 50 GB/s), transferring $S_{\text{KV}}$ takes:
 
-- 1K context: $\approx 0.84$ ms.
-- 8K context: $\approx 6.7$ ms.
-- 32K context: $\approx 27$ ms.
+- 1K context: $\approx 6.7$ ms.
+- 4K context: $\approx 26.8$ ms.
+- 8K context: $\approx 53.7$ ms.
+- 32K context: $\approx 215$ ms.
 
-Within an NVLink domain (GB200 NVL72 NVLink 5 at ~1.8 TB/s per GPU effective), the same transfers take roughly $4.5\times$ less. Across XDR IB or 8-NIC GPUDirect aggregation (Mooncake reports 87 GB/s on 4×200 Gbps RoCE and 190 GB/s on 8×400 Gbps), the picture again improves; the in-NVLink-domain case is dominant for GB200 NVL72 deployments and the cross-node case is what Splitwise's layer-wise overlap and Mooncake's TransferEngine were designed for.
+Within an NVLink domain (GB200 NVL72 NVLink 5 at ~1.8 TB/s per GPU effective), the same transfers take roughly $36\times$ less. Across XDR IB or 8-NIC GPUDirect aggregation (Mooncake reports ~87 GB/s on 4×200 Gbps RoCE and ~190 GB/s on 8×400 Gbps), times are roughly 4× and 8× shorter respectively vs. single-port NDR; the in-NVLink-domain case is dominant for GB200 NVL72 deployments and the cross-node case is what Splitwise's layer-wise overlap and Mooncake's TransferEngine were designed for.
 
 For overlap-friendly hand-off, the transfer must hide inside the prefill latency budget:
 
@@ -157,7 +158,7 @@ $$
 T_{\text{xfer}} \;=\; \frac{S_{\text{KV}}}{B_{\text{link}}} \;\le\; T_P \quad\Longrightarrow\quad B_{\text{link}} \;\ge\; \frac{S_{\text{KV}}}{T_P}.
 $$
 
-For 70B-class models at 8K context with $T_P \approx 200$ ms, the link bound is $\approx 13.5$ GB/s — well within IB NDR per request, but at $R = 100$ rps the aggregate is 1.35 TB/s, motivating multi-NIC striping (Mooncake) and layer-wise overlap (Splitwise). The full collectives-and-comm primer in [see §00/04-collectives-and-comm-primer](../00-foundations/04-collectives-and-comm-primer.md) develops the link-bandwidth budget more carefully; KV transfer is the canonical *point-to-point*, *request-keyed*, *one-shot* primitive that is not a collective and that PD disaggregation introduces as a new class of cluster traffic.
+For 70B-class models at 8K context with $T_P \approx 200$ ms, the required transfer bandwidth is ${\approx}13.5$ GB/s — well within the ${\sim}50$ GB/s available on a single NDR IB port (3.7× headroom), and even further within a multi-NIC aggregate. The 32K-context case is more demanding: 53 GB/s required bandwidth strains a single-port link and motivates the multi-NIC striping (Mooncake) and layer-wise overlap (Splitwise) designs. The full collectives-and-comm primer in [see §00/04-collectives-and-comm-primer](../00-foundations/04-collectives-and-comm-primer.md) develops the link-bandwidth budget more carefully; KV transfer is the canonical *point-to-point*, *request-keyed*, *one-shot* primitive that is not a collective and that PD disaggregation introduces as a new class of cluster traffic.
 
 ### 5.3 The transport landscape
 
