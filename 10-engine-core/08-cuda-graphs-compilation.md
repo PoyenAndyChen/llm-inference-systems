@@ -208,7 +208,7 @@ flowchart TB
     MAX --> MLIR
 ```
 
-The diagram folds together two distinct populations that are easy to confuse. *Kernel DSLs* (Triton, CuTe-DSL, ThunderKittens, TileLang, AITER/Wave, Mojo at one of its abstraction levels) are the languages a kernel author writes in. *Compiler stacks* (MLIR, IREE, TVM, MAX) are the infrastructure those DSLs target on the way to a backend. The DSL landscape was developed in [§10/01-attention-kernels](01-attention-kernels.md, Part 4); the compiler-stack layer is what follows.
+The diagram folds together two distinct populations that are easy to confuse. *Kernel DSLs* (Triton, CuTe-DSL, ThunderKittens, TileLang, AITER/Wave, Mojo at one of its abstraction levels) are the languages a kernel author writes in. *Compiler stacks* (MLIR, IREE, TVM, MAX) are the infrastructure those DSLs target on the way to a backend. The DSL landscape was developed in [§10/01-attention-kernels, Part 4](01-attention-kernels.md); the compiler-stack layer is what follows.
 
 ### 6.1 Triton on MLIR
 

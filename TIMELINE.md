@@ -247,4 +247,4 @@ For depth, follow the cross-references to individual chapters.
 
 ---
 
-*Entries marked "announced but not shipped as of May 2026" reflect hardware or software where public availability had not been confirmed at the time of writing. Quarters marked "(approx.)" indicate best-estimate placement from available sources; exact dates may differ.*
+*Entries marked "announced but not shipped as of May 2026" reflect hardware or software for which general availability had not been confirmed by that date. Quarters marked "(approx.)" indicate best-estimate placement; exact dates may differ.*

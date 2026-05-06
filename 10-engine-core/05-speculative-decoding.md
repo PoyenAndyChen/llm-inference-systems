@@ -159,7 +159,7 @@ A rough taxonomy:
 - **Translation.** Lower $\alpha$: target vocabulary is diverse, drafter-target alignment is weaker, the target distribution is genuinely uncertain at every position. Speedups are real but modest.
 - **Long-chain-of-thought reasoning.** Mixed. Inside a coherent reasoning step $\alpha$ is high; at branch points it collapses, and token-level SD payoff is bounded because $\alpha^\gamma$ collapses every time the path diverges. [Lookahead-Reasoning] (NeurIPS 2025) responds with *step-level* speculation — the drafter proposes future reasoning steps, the verifier checks semantic correctness — pushing SD speedup from 1.4× to 2.1× on GSM8K/AIME-class workloads with R1-style models. Step acceptance rates land at 50–63%. [See §60/01-test-time-compute](../60-adjacent-workloads/01-test-time-compute.md).
 
-Practical implication: do not commit to an SD configuration based on a single benchmark. SpecBench's six tasks are a starting point; SPEED-Bench unifies domain coverage with serving-regime diversity and is the better current reference. Per-tenant or per-route drafter selection and adaptive-$\gamma$ scheduling (next section) are how this variance is absorbed in production.
+Practical implication: an SD configuration should not be committed to on the strength of a single benchmark. SpecBench's six tasks are a starting point; SPEED-Bench unifies domain coverage with serving-regime diversity and is the better current reference. Per-tenant or per-route drafter selection and adaptive-$\gamma$ scheduling (next section) are how this variance is absorbed in production.
 
 ## 5. Continuous batching and the heterogeneous-batch problem
 

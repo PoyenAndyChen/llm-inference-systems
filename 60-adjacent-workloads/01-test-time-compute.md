@@ -239,7 +239,7 @@ model (which has at least a partial view).
 operationally similar to a thinking-token budget knob. Gemini's surface keeps
 the reasoning behind a separate API contour rather than exposing per-request
 token-level control to the same degree as OpenAI's `reasoning_effort` or
-Anthropic's `budget_tokens`. (This characterization is hedged — public Gemini
+Anthropic's `budget_tokens`. (With caveats — public Gemini
 API surfaces have evolved frequently and exact semantics depend on tier.)
 
 The cost is real. Claude Sonnet 4.6 with extended thinking bills hidden
@@ -328,7 +328,7 @@ latency (similar to ITL but over a longer horizon), time to first
 *answer* token (the user-visible latency), and total completion time. The
 business SLO is usually time-to-first-answer-token (and total completion
 time); the engine-internal SLO must include the thinking-token metrics
-because they drive scheduler decisions. Hedge: there is no industry-standard
+because they drive scheduler decisions. Note that there is no industry-standard
 formalization of these four numbers as of mid-2026; the names and
 operationalization vary across operators.
 

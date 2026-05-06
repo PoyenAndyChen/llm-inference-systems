@@ -120,7 +120,7 @@ SGLang's [see [§80/02-sglang](../80-oss-deep-dives/02-sglang.md)] LoRA stack is
 
 SGLang also exposes LoRA-specific scheduling primitives that vLLM does not. `LoRADrainer` (`lora/lora_drainer.py`) is a fairness mechanism: when an adapter is being drained, no new requests for it enter the running batch; existing requests finish; then the adapter is evicted. This bounds the tail latency of adapter churn under thrashing workloads. `LoRAOverlapLoader` (`lora/lora_overlap_loader.py`) overlaps adapter weight transfer with the base-model forward pass to hide host-to-device PCIe time. The scheduler treats `running_loras` as a first-class set and guards admission with `Scheduler._can_schedule_lora_req` against `max_loras_per_batch`.
 
-The csgmv-and-overlap-loader combination is, at this writing, the highest-throughput open-source multi-LoRA path under heavy adapter heterogeneity; the V1 Triton path is the most mature and ships LoRA-on-MoE.
+The csgmv-and-overlap-loader combination is, as of mid-2026, the highest-throughput open-source multi-LoRA path under heavy adapter heterogeneity; the V1 Triton path is the most mature and ships LoRA-on-MoE.
 
 ### 3.5 Cost model
 
@@ -198,7 +198,7 @@ These three lines all answer the same architectural question — *can the kernel
 
 Speculative decoding [see [§10/05-speculative-decoding](../10-engine-core/05-speculative-decoding.md)] composes awkwardly with multi-tenant LoRA. The modified rejection sampling that gives spec-dec its acceptance guarantee assumes the drafter and target distributions are aligned; if the target uses a per-request adapter and the drafter does not, the drafter is effectively drawing from the *base* distribution and the target from the *adapted* one. Acceptance rates fall in proportion to the divergence the adapter introduces.
 
-Three production paths exist. *Turbo-LoRA* [`[Turbo-LoRA]`, Predibase] jointly trains the LoRA and the draft head, so the drafter inherits the adapter; the cost is per-adapter draft training. *Per-tenant draft adapters* require a draft model with its own adapter pool, which doubles the multi-tenant kernel work. *Adapter-blind drafting* — the drafter ignores the LoRA — works when the adapter is mild (e.g., style or formatting tweaks) but degrades on adapters that change vocabulary or distribution sharply (domain-specific tuning). vLLM's V0 spec-dec + LoRA path (`PR #11966`) supports the third pattern; the V1 stack does not, as of this writing, ship a stable spec-dec + LoRA combination. The interaction is an open systems question more than an open algorithmic one.
+Three production paths exist. *Turbo-LoRA* [`[Turbo-LoRA]`, Predibase] jointly trains the LoRA and the draft head, so the drafter inherits the adapter; the cost is per-adapter draft training. *Per-tenant draft adapters* require a draft model with its own adapter pool, which doubles the multi-tenant kernel work. *Adapter-blind drafting* — the drafter ignores the LoRA — works when the adapter is mild (e.g., style or formatting tweaks) but degrades on adapters that change vocabulary or distribution sharply (domain-specific tuning). vLLM's V0 spec-dec + LoRA path (`PR #11966`) supports the third pattern; the V1 stack does not, as of mid-2026, ship a stable spec-dec + LoRA combination. The interaction is an open systems question more than an open algorithmic one.
 
 ## Current production state
 

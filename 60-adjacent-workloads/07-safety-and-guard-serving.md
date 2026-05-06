@@ -71,7 +71,7 @@ guarded model has already paid the cost of computing rich representations of the
 intermediate activations of the guarded model itself. The probe is a lightweight MLP that consumes the
 residual-stream representation at a chosen layer and outputs the classification scores.
 
-The reported overhead drops from ~25% to ~4% of per-request compute (hedge: the precise ratios depend on
+The reported overhead drops from ~25% to ~4% of per-request compute (with caveats: the precise ratios depend on
 guarded-model size, the layer chosen for the probe, and which classifier categories are decoded). Two effects
 compound: the probe head is orders of magnitude smaller than a full classifier model, and the activations are
 computed *anyway* during the guarded-model forward, so the probe rides on already-paid compute.
@@ -181,7 +181,7 @@ The compliance driver is **EU AI Act Article 50**, which requires providers of g
 synthetic content is *marked* in a machine-readable format and disclosed as AI-generated. Watermarking is the
 canonical technical mechanism for this requirement. Article 50 obligations apply from August 2026, which has
 accelerated production deployment of watermarking across major providers; whether the resulting watermarks are
-*detectable enough* to satisfy enforcement (hedge) is an open question that benchmark work is still settling.
+*detectable enough* to satisfy enforcement is an open question that benchmark work is still settling.
 
 The serving operational problem is *key management*. A watermark is only as useful as the key that detects it: keys
 must be auditable, rotation must not invalidate older content, and keys must be partitioned across deployment tiers

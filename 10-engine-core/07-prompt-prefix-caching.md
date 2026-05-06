@@ -457,7 +457,7 @@ detailed treatment of tiered offload, including the four-tier pyramid
 (HBM → DRAM → SSD → remote) and the transport landscape, lives in
 [see §30/02-kv-tiered-offload](../30-kv-cache/02-kv-tiered-offload.md).
 
-## 10. Forward reference: GRPO and prefix reuse in RL post-training
+## 10. GRPO and prefix reuse in RL post-training
 
 A class of workload that profits unusually from prefix caching is
 reinforcement-learning post-training under GRPO (Group Relative Policy
@@ -500,8 +500,8 @@ A few practical issues that recur in production:
 
 ## Current production state
 
-As of mid-2026, prefix caching is default-on across every major engine
-this textbook covers. vLLM V1 ships hash-chained block-level prefix
+As of mid-2026, prefix caching is default-on across every major
+production engine. vLLM V1 ships hash-chained block-level prefix
 caching with `cache_salt` namespacing and the connector framework that
 lets LMCache, NIXL-Mooncake, llm-d's filesystem connector, and a
 CPU-offload tier sit behind the same scheduler interface. SGLang ships

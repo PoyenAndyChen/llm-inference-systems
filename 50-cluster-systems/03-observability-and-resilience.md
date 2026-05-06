@@ -286,7 +286,7 @@ historically tore down the whole EP group. SGLang's Elastic EP (March
 remap to surviving peers with reduced capacity, the EP group remains
 live with degraded throughput, and recovery proceeds asynchronously
 [Elastic-EP-SGLang]. The cluster loses some performance; it does not
-lose the deployment. Hedge: published numbers cover specific
+lose the deployment. The published numbers cover specific
 DeepSeek-MoE configurations; behavior under arbitrary expert layouts
 and replication factors is less characterized.
 
@@ -314,8 +314,8 @@ shape is becoming clear. Failures to inject:
 The measurement vocabulary is the canonical metric set from §3 — chaos
 is useful when its impact registers on dashboards operators already
 watch. Tooling is bespoke; no chaos-monkey-for-LLM-serving exists in
-open source, and what runs lives inside hyperscaler platforms. Hedge:
-this section reflects practitioner reports and emerging patterns
+open source, and what runs lives inside hyperscaler platforms. The
+material here reflects practitioner reports and emerging patterns
 rather than a settled discipline; expect formalization through
 2026–2027.
 
@@ -341,7 +341,7 @@ AIBrix StormService) with application-level checkpointing of the
 reasoning state itself. Elastic EP (SGLang, March 2026) is the most
 recent and most consequential addition: by removing whole-group
 failure as a mode, it makes large MoE deployments operationally
-tractable for teams that cannot afford bespoke control planes. Hedge:
+tractable for teams that cannot afford bespoke control planes. The
 fault-tolerance numbers in vendor blog posts cover narrow
 configurations; treat them as existence proofs rather than
 specifications, and validate on the actual workload shape before

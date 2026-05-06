@@ -13,10 +13,10 @@ Coverage spans the techniques, systems, and open-source engines that constitute 
 | Goal | Where to begin |
 |---|---|
 | Comprehensive read | Follow Path A below |
-| Catch up on the past 12 months | Start with [TIMELINE.md](TIMELINE.md), then each chapter's `## Current production state` callout |
+| Catch up on developments in 2025–2026 | Start with [TIMELINE.md](TIMELINE.md), then each chapter's `## Current production state` callout |
 | Find a specific topic | Use the [chapter index by topic](#chapter-index-by-topic) below |
 | Look up a term | [glossary.md](glossary.md) — ~310 entries |
-| Find a paper | [papers.md](papers.md) — ~800 entries, 445 flagged `[2026-NEW]` |
+| Find a paper | [papers.md](papers.md) — ~800 entries organized topically |
 
 ---
 
@@ -50,7 +50,7 @@ The sections are ordered to respect dependencies. Read within each section in ch
 
 ---
 
-### Path B — 12-month refresher
+### Path B — 2025–2026 refresher
 
 For readers already familiar with the foundations who want to orient on what changed in 2025–2026:
 
@@ -186,20 +186,6 @@ graph TD
 
 | Document | Contents |
 |---|---|
-| [papers.md](papers.md) | Master bibliography, ~800 entries, 445 flagged `[2026-NEW]`. Use to find canonical paper references cited throughout the text. |
+| [papers.md](papers.md) | Master bibliography of roughly 800 entries, organized topically; cited throughout the text by citation key. |
 | [glossary.md](glossary.md) | ~310 terminology entries. Look here first when a term is unfamiliar. |
 | [TIMELINE.md](TIMELINE.md) | 2024–2026 milestone sidebar. Anchors when key papers landed and techniques became production-grade. |
-
----
-
-## Key findings from the 2025–2026 research period
-
-Seven results that significantly changed how the field thinks about inference:
-
-- **FlashAttention-4 confirmed** (March 2026): CuTe-DSL implementation targeting B200, asymptotic throughput improvement for Blackwell's double-precision tensor cores.
-- **DeepSeek Open-Source Week** (February 2025): DeepEP, DualPipe, EPLB, and DeepGEMM released simultaneously — an inflection point for MoE serving at expert-parallel scale.
-- **MTP and speculative decoding are complementary, not competing**: Multi-token prediction training produces a draft head; speculative decoding provides the verification mechanism. The two compose.
-- **Attention-FFN Disaggregation (AFD)** as a new sublayer axis: disaggregation is no longer just prefill vs. decode — attention and FFN (expert) layers can be placed on separate device pools for MoE models, reducing the all-to-all communication bottleneck.
-- **Sparse attention as a natively-trained primitive**: DeepSeek-V3.2 DSA (September 2025) trains sparse attention in the base model rather than applying it post-hoc, enabling full sequence-length savings without approximation cost.
-- **TGI no longer accepting major upstream features** (March 2026): Hugging Face shifted TGI to maintenance mode. New development consolidated in vLLM, SGLang, and TensorRT-LLM.
-- **ktransformers absorbed into SGLang as kernel library** (October 2025): AMX kernels and hot/cold MoE routing migrated into the SGLang ecosystem; the standalone ktransformers inference server is no longer the primary development surface.
