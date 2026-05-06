@@ -212,7 +212,7 @@ The 2017–2024 era wrote attention in CUDA C++, often via CUTLASS. The 2024–2
 
 **CuTe-DSL** ([CuTe-DSL](../papers.md#cute-dsl), NVIDIA, 2025) is a Python API on CUTLASS 4 — exposes CuTe's `Tensor` and `Layout` algebra to Python at C++-template performance, with 20–30× faster compile than C++ templates. FA-4 is built entirely in CuTe-DSL; `nvidia-cutlass-dsl` is a hard dependency of the FA-4 install path. CuTe-DSL is Blackwell-targeted (SM100+) by design.
 
-**ThunderKittens** ([ThunderKittens](../papers.md#thunderkittens), Spector et al., Hazy Research, October 2024) is a tile-primitive C++ DSL hitting cuBLAS / FA-grade speeds in a fraction of the source-line count. TK 2.0 ([TK-2.0](../papers.md#tk-2.0), February 2026) added full Blackwell support with NVFP4 / MXFP8 GEMMs at-or-above cuBLAS on B200; powers Cursor Composer training and Together AI inference. ThunderMLA, [HipKittens](../papers.md#hipkittens) (AMD MI300), and ParallelKittens (multi-GPU collective-aware tiles) are the family.
+**ThunderKittens** ([ThunderKittens](../papers.md#thunderkittens), Spector et al., Hazy Research, October 2024) is a tile-primitive C++ DSL hitting cuBLAS / FA-grade speeds in a fraction of the source-line count. TK 2.0 ([TK-2.0](../papers.md#tk-2-0), February 2026) added full Blackwell support with NVFP4 / MXFP8 GEMMs at-or-above cuBLAS on B200; powers Cursor Composer training and Together AI inference. ThunderMLA, [HipKittens](../papers.md#hipkittens) (AMD MI300), and ParallelKittens (multi-GPU collective-aware tiles) are the family.
 
 **TileLang** ([TileLang](../papers.md#tilelang), Wang et al., PKU/Microsoft, April 2025; ICLR 2026) reaches ~98% of FlashMLA on H100 in ~70 lines of Python; basis of `QwenLM/FlashQLA` and `deepseek-ai/TileKernels`.
 
