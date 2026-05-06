@@ -16,7 +16,7 @@ This chapter approaches synthesis through three concrete reference stacks, each 
 
 Each recipe traces a request end-to-end, from the HTTP call that arrives at the cluster edge to the stream of output tokens that leaves it. The cross-references point to the chapters where each mechanism is developed in depth. Following the three recipes, a cross-cutting section identifies what converges across all three, what genuinely diverges, and why.
 
-The three recipes span the major deployment archetypes as of 2026:
+The three recipes span the major deployment archetypes as of mid-2026:
 
 | | Recipe A | Recipe B | Recipe C |
 |---|---|---|---|
@@ -29,11 +29,11 @@ The three recipes span the major deployment archetypes as of 2026:
 | **Primary constraint** | Cost/throughput at frontier scale | Cost efficiency, mixed workload | Rollout throughput, weight sync |
 | **Disaggregation** | P/D disaggregated | Optional P/D | Aggregated rollout |
 
-The ordering reflects a progression from the most complex (Recipe A requires understanding everything prior in the book) to the most novel architectural problem (Recipe C introduces training-inference co-design concerns not present in pure serving). Together, the three recipes cover the majority of production GPU-hours consumed by LLM inference in 2026.
+The ordering reflects a progression from the most complex (Recipe A requires understanding everything prior in the book) to the most novel architectural problem (Recipe C introduces training-inference co-design concerns not present in pure serving). Together, the three recipes cover the majority of production GPU-hours consumed by LLM inference as of mid-2026.
 
 ---
 
-## Part A: Frontier-MoE Serving at Scale
+## 2. Recipe A: Frontier-MoE Serving at Scale
 
 ### A.1 Setting
 
@@ -166,7 +166,7 @@ All numbers above are workload-specific and reflect DeepSeek-V3-class MoE with M
 
 ---
 
-## Part B: Cost-Optimized Dense Serving
+## 3. Recipe B: Cost-Optimized Dense Serving
 
 ### B.1 Setting
 
@@ -309,7 +309,7 @@ flowchart TD
 
 ---
 
-## Part C: Reasoning Model and RL Post-Training
+## 4. Recipe C: Reasoning Model and RL Post-Training
 
 ### C.1 Setting
 
@@ -485,13 +485,13 @@ flowchart TD
 
 ---
 
-## 4. Cross-Cutting Observations
+## 5. Cross-Cutting Observations
 
 ### 4.1 What converges across all three recipes
 
 **Prefix caching is universal.** All three stacks rely on prefix caching as a primary cost-reduction mechanism: SGLang's RadixAttention tree, vLLM's hash-chained block store, and the GRPO group-sampling prefix reuse pattern in RL rollout. The underlying mechanism is the same — deduplicate KV computation for repeated token prefixes — but the trigger differs: in Recipes A and B it is shared system prompts and document context; in Recipe C it is the GRPO group-sampling structure. The implementation details also differ: SGLang's tree supports partial-page splits and hierarchical HiCache; vLLM's chain-hash approach is simpler but requires PYTHONHASHSEED determinism for cross-process coherence. Cross-ref [§10/07](../10-engine-core/07-prompt-prefix-caching.md).
 
-**FP8 quantization is the dominant weight format for production inference.** Recipe A uses FP8 E4M3 with DeepGEMM; Recipe B uses FP8 E4M3 via vLLM's Transformer Engine path; Recipe C uses BF16 or FP16 during rollout (for training-inference numerical consistency) but FP8 for production inference. The B200's native FP8 tensor core support (SM100 arch) and H100's FP8 via Transformer Engine v1 make FP8 the default quantization level for any new deployment as of 2026. The next step under active adoption is 4-bit formats (NVFP4 on Blackwell, MXFP4 in GPT-OSS), but these require hardware support not yet present on H100. Cross-ref [§10/04](../10-engine-core/04-quantization.md).
+**FP8 quantization is the dominant weight format for production inference.** Recipe A uses FP8 E4M3 with DeepGEMM; Recipe B uses FP8 E4M3 via vLLM's Transformer Engine path; Recipe C uses BF16 or FP16 during rollout (for training-inference numerical consistency) but FP8 for production inference. The B200's native FP8 tensor core support (SM100 arch) and H100's FP8 via Transformer Engine v1 make FP8 the default quantization level for any new deployment as of mid-2026. The next step under active adoption is 4-bit formats (NVFP4 on Blackwell, MXFP4 in GPT-OSS), but these require hardware support not yet present on H100. Cross-ref [§10/04](../10-engine-core/04-quantization.md).
 
 **CUDA graph execution is universal.** All three stacks capture execution graphs for common decode batch sizes to eliminate Python dispatch overhead and kernel launch latency. The implementation varies (vLLM's piecewise CUDA graphs, SGLang's breakable piecewise graphs, TBO-aware graph capture for MoE all-to-all), but the principle is the same. The exception is the weight-update phase in Recipe C, which requires graph invalidation and re-warm after each policy update — an overhead that motivates the sleep-mode API (`vllm.sleep(level=2)` / `vllm.wake_up()`) to separate weight-holding and KV-holding GPU memory reservations. Cross-ref [§10/08](../10-engine-core/08-cuda-graphs-compilation.md).
 
@@ -529,6 +529,7 @@ flowchart LR
         RA3[Mooncake Store L3]
         RA1 --> RA2 --> RA3
         MC[Mooncake TransferEngine\nP→D RDMA]
+        RA3 -.feeds.-> MC
     end
 
     subgraph RecipeB["Recipe B (Dense/H100)"]
@@ -595,10 +596,10 @@ Given a new deployment scenario, the following questions guide recipe selection:
 
 ---
 
-## Current Production State
+## Current production state
 
 As of May 2026, the frontier-MoE serving pattern described in Recipe A is in production at Moonshot AI (Kimi, via the Mooncake + SGLang + large-EP stack documented in FAST '25 and the LMSYS benchmark series), at the DeepSeek production cluster (the EP32/EP320 PD-disaggregated layout documented in arXiv:2505.09343), and at multiple hyperscaler deployments using NVIDIA Dynamo on GB200 NVL72 hardware. The throughput numbers are large by historical standards: the LMSYS blog reports SGLang on GB200 NVL72 achieving 3.8× prefill and 4.8× decode throughput versus the H100 baseline for DeepSeek-class models (September 2025 benchmark). NVIDIA claims 25× inference performance gains on GB300 NVL72 versus Hopper for DeepSeek (vendor benchmark; primary methodology and baseline specification should be consulted before comparison). The Kimi-K2 deployment on 128×H200 GPUs achieved reported throughput of 224k tokens/s prefill and 288k tokens/s decode (per secondary sources; see arXiv:2507.20534 for primary figures). All of these figures are specific to the DeepSeek-V3 or Kimi-K2 workload on the stated hardware and should not be extrapolated to other models or traffic distributions without re-benchmarking.
 
-The cost-optimized dense serving pattern described in Recipe B represents the dominant deployment shape by aggregate token volume in 2026. H100 and H200 SXM hardware remains the backbone of most commercial and enterprise serving infrastructure. Llama-3.x-70B and Qwen3-72B-class dense models are the workhorses. vLLM V1 with LMCache is the most commonly deployed open-source stack at this tier. The production routing landscape is converging on the Kubernetes Inference Gateway API (GIE) Endpoint Picker Protocol: llm-d is the CNCF Sandbox reference implementation (accepted March 2026, sponsored by Red Hat, Google Cloud, IBM Research, CoreWeave, and NVIDIA), Dynamo's Go EPP plugin provides the NVIDIA-ecosystem alternative with CGO-accelerated Rust routing, and AIBrix's ext-proc gateway remains the ByteDance/vLLM-org offering with the broadest CRD surface and APA autoscaler. The llm-d v0.5 benchmark (February 2026) reports approximately 3.1k tokens/s per B200 for wide-EP decode and 50k output tokens/s on a 16×16 B200 P/D topology, with an order-of-magnitude TTFT reduction versus round-robin routing. These represent the ceiling of what the GIE abstraction currently supports; production deployments at smaller scale see proportionally smaller routing benefit. Cross-ref [§50/01](../50-cluster-systems/01-router-gateway.md), [§80/06](../80-oss-deep-dives/06-llm-d.md), [§80/07](../80-oss-deep-dives/07-aibrix.md).
+The cost-optimized dense serving pattern described in Recipe B represents the dominant deployment shape by aggregate token volume as of mid-2026. H100 and H200 SXM hardware remains the backbone of most commercial and enterprise serving infrastructure. Llama-3.x-70B and Qwen3-72B-class dense models are the workhorses. vLLM V1 with LMCache is the most commonly deployed open-source stack at this tier. The production routing landscape is converging on the Kubernetes Inference Gateway API (GIE) Endpoint Picker Protocol: llm-d is the CNCF Sandbox reference implementation (accepted March 2026, sponsored by Red Hat, Google Cloud, IBM Research, CoreWeave, and NVIDIA), Dynamo's Go EPP plugin provides the NVIDIA-ecosystem alternative with CGO-accelerated Rust routing, and AIBrix's ext-proc gateway remains the ByteDance/vLLM-org offering with the broadest CRD surface and APA autoscaler. The llm-d v0.5 benchmark (February 2026) reports approximately 3.1k tokens/s per B200 for wide-EP decode and 50k output tokens/s on a 16×16 B200 P/D topology, with an order-of-magnitude TTFT reduction versus round-robin routing. These represent the ceiling of what the GIE abstraction currently supports; production deployments at smaller scale see proportionally smaller routing benefit. Cross-ref [§50/01](../50-cluster-systems/01-router-gateway.md), [§80/06](../80-oss-deep-dives/06-llm-d.md), [§80/07](../80-oss-deep-dives/07-aibrix.md).
 
 The RL post-training recipe described in Recipe C has matured from a research pattern into an industrial production pattern in 2025–2026. veRL is the dominant framework for at-scale RLVR training; AReaL, slime, NeMo-RL, and OpenRLHF are production-grade alternatives with distinct architectural trade-offs. The fully asynchronous disaggregated rollout design (AReaL boba² / veRL 0.7 fully-async mode) has displaced synchronous rollout at scales above 32B parameters and long chain-of-thought, with throughput improvements of 1.4× to 2.77× versus synchronous baselines reported across independent implementations. Speculative decoding during rollout, historically avoided due to drafter-policy divergence under weight churn, is now viable with online draft adaptation: NeMo-RL v0.6 (May 2026) reports 1.8× rollout speedup at 8B scale with projected gains at 235B. The two open engineering problems as of mid-2026 are: (1) MoE training-inference routing inconsistency — when training a DeepSeek-V3-class model with Megatron-Core and generating rollouts with vLLM or SGLang, the expert routing for the same token can differ at identical checkpoint weights, producing off-policy samples that importance sampling cannot fully correct; (2) weight-sync cost at trillion-parameter scale — NCCL broadcast at 1T parameters requires tens of seconds even over fast IB, pushing deployments toward RDMA P2P streaming (Awex, Mooncake checkpoint-engine) or per-forward-pass weight swap (PipelineRL) as alternatives. Cross-ref [§60/06](../60-adjacent-workloads/06-rl-post-training-infrastructure.md).

@@ -504,7 +504,7 @@ Date format is YYYY-MM. Venues are listed where known; "preprint" indicates arXi
   - Filesystem-agnostic POSIX connector with async I/O and GPU DMA.
 - <a id="lmcache-gke"></a>`[LMCache-GKE]` *LMCache on Google Kubernetes Engine*. 2025-10. https://blog.lmcache.ai/en/2025/10/07/lmcache-on-google-kubernetes-engine-boosting-llm-inference-performance-with-kv-cache-on-tiered-storage/
 - <a id="mla-v3"></a>`[MLA-V3]` See `[DeepSeek-V3-FP8]` above. MLA at scale (671B MoE, 37B activated); ~32× compression ratio.
-- <a id="expertchoice"></a>`[ExpertChoice]` See MoE section. Cross-references KV via low-rank principles.
+- `[ExpertChoice]` See MoE section. Cross-references KV via low-rank principles.
 
 ### Batching and scheduling
 
@@ -634,7 +634,7 @@ Date format is YYYY-MM. Venues are listed where known; "preprint" indicates arXi
   - 1.2T-param 64-expert decoder; ½ inference FLOPs of GPT-3 at better quality.
 - <a id="st-moe"></a>`[ST-MoE]` *ST-MoE: Designing Stable and Transferable Sparse Expert Models*. Zoph et al. 2022-02. arXiv:2202.08906. https://arxiv.org/abs/2202.08906
   - 269B sparse with router-z-loss; first to top SuperGLUE/ARC.
-- `[ExpertChoice]` *Mixture-of-Experts with Expert Choice Routing*. Zhou et al. (Google). 2022-02. NeurIPS 2022, arXiv:2202.09368. https://arxiv.org/abs/2202.09368
+- <a id="expertchoice"></a>`[ExpertChoice]` *Mixture-of-Experts with Expert Choice Routing*. Zhou et al. (Google). 2022-02. NeurIPS 2022, arXiv:2202.09368. https://arxiv.org/abs/2202.09368
   - Inverts routing: experts pick top-k tokens; eliminates dropping.
 - <a id="mixtral-8x7b"></a>`[Mixtral-8x7B]` *Mixtral of Experts*. Jiang et al. (Mistral AI). 2024-01. arXiv:2401.04088. https://arxiv.org/abs/2401.04088
   - 47B/13B-active 8-expert; first mainstream open-weight transformer MoE.

@@ -53,7 +53,7 @@ R · [RadixAttention](#kv-cache) · [RAG](#workload-primitives) · [Ray Serve LL
 
 S · [S-LoRA](#lora-and-multi-tenant) · [SageAttention](#attention-and-kernels) · [Sarathi-Serve](#batching-and-scheduling) · [SambaNova SN40L](#hardware) · [Selective batching](#batching-and-scheduling) · [Sequence parallelism (SP)](#distributed-inference) · [SGLang](#cluster-systems) · [SGMV](#lora-and-multi-tenant) · [Sliding-window attention (SWA)](#attention-and-kernels) · [SLO / SLO-aware scheduling](#metrics-units-and-workload-taxonomy) · [slime](#rl-post-training) · [SmoothQuant](#quantization-formats) · [SnapKV](#kv-cache) · [SOLA](#multi-tenant-and-fairness) · [Spec-Bench](#speculative-decoding-and-mtp) · [Speculative decoding](#speculative-decoding-and-mtp) · [Speculators](#speculative-decoding-and-mtp) · [SpecForge](#speculative-decoding-and-mtp) · [Splitwise](#disaggregation-patterns) · [Striped Attention](#distributed-inference) · [StreamingLLM](#attention-and-kernels) · [SuffixDecoding](#speculative-decoding-and-mtp)
 
-T · [TaiChi](#disaggregation-patterns) · [TBT (Token-Between-Tokens)](#metrics-units-and-workload-taxonomy) · [tcgen05 / TMEM](#hardware) · [Tensor parallelism (TP)](#distributed-inference) · [TensorRT-LLM](#cluster-systems) · [TEI (Text Embeddings Inference)](#workload-primitives) · [Tessera](#heterogeneous-inference) · [TGI](#cluster-systems) · [ThunderKittens](#attention-and-kernels) · [TileLang](#attention-and-kernels) · [TMA (Tensor Memory Accelerator)](#hardware) · [TPU (v5/v6/v7)](#hardware) · [Trainium2 / Trainium3](#hardware) · [TransferEngine (Perplexity)](#disaggregation-patterns) · [Tree of Thought (ToT)](#workload-primitives) · [TRT-LLM](#cluster-systems) · [TurboQuant](#quantization-formats) · [TurboSpec / SmartSpec](#speculative-decoding-and-mtp)
+T · [TaiChi](#disaggregation-patterns) · [TBT (Token-Between-Tokens)](#metrics-units-and-workload-taxonomy) · [tcgen05 / TMEM](#hardware) · [Tensor parallelism (TP)](#distributed-inference) · [TensorRT-LLM](#cluster-systems) · [TEI (Text Embeddings Inference)](#workload-primitives) · [Tessera](#heterogeneous-inference) · [TGI](#cluster-systems) · [ThunderKittens](#attention-and-kernels) · [TileLang](#attention-and-kernels) · [TMA (Tensor Memory Accelerator)](#hardware) · [Token budget](#batching-and-scheduling) · [TPU (v5/v6/v7)](#hardware) · [Trainium2 / Trainium3](#hardware) · [TransferEngine (Perplexity)](#disaggregation-patterns) · [Tree of Thought (ToT)](#workload-primitives) · [TRT-LLM](#cluster-systems) · [TurboQuant](#quantization-formats) · [TurboSpec / SmartSpec](#speculative-decoding-and-mtp)
 
 U · [UALink](#hardware) · [UCCL](#cluster-systems) · [UCX](#disaggregation-patterns) · [Ulysses (DeepSpeed)](#distributed-inference) · [Ultra Ethernet (UEC)](#hardware) · [USP](#distributed-inference)
 
@@ -133,6 +133,83 @@ output token, decomposable as $T_{\mathrm{queue}} + T_{\mathrm{prefill}} +
 T_{\mathrm{network}}$. The dominant SLO for interactive chat and the variable
 that motivates chunked prefill and PD disaggregation.
 - See also: Goodput, Prefill, Chunked prefill.
+
+---
+
+## Batching and scheduling
+
+**Chunked prefill.** Splitting a long prefill into fixed-size token chunks that
+are scheduled iteration-by-iteration alongside decode tokens, instead of
+running the entire prefill in a single forward pass. Eliminates head-of-line
+blocking against decode and improves ITL stability under bursty prefill load.
+Originated in Sarathi (preprint 2023); productionized as the default scheduling
+discipline by Sarathi-Serve and now standard in vLLM V1, SGLang, and TRT-LLM.
+- See also: Continuous batching, Sarathi-Serve, Dynamic SplitFuse, Token budget. See `10/03`.
+
+**Continuous batching.** Iteration-level batching policy that admits new
+requests into and evicts completed requests from a running batch on every
+forward-pass step, instead of waiting for the slowest request to finish.
+Established by ORCA (OSDI '22) under the name *iteration-level scheduling*;
+universally adopted under the name *continuous batching* by 2024. The structural
+prerequisite for high-utilization decode at variable request lengths.
+- See also: ORCA, Iteration-level scheduling, In-flight batching, Selective batching. See `10/03`.
+
+**Dynamic SplitFuse.** DeepSpeed-MII's variant of chunked prefill that splits
+prefill into chunks dynamically sized to fill the remaining token budget after
+decode tokens are scheduled, rather than using a fixed chunk size. Conceptually
+similar to Sarathi-Serve's stall-free schedule; differs in chunk-size policy.
+- See also: Chunked prefill, Sarathi-Serve, Token budget. See `10/03`.
+
+**In-flight batching.** TRT-LLM's term for continuous batching: the engine
+admits new requests and evicts completed requests on each iteration of the
+in-flight batch manager loop. Functionally equivalent to vLLM/SGLang's
+continuous batching with TRT-LLM-specific scheduling hooks (CapacityScheduler,
+MicroBatchScheduler).
+- See also: Continuous batching, Iteration-level scheduling. See `10/03`, `80/03`.
+
+**Iteration-level scheduling.** The general term for scheduling decisions made
+at every forward-pass iteration rather than at request granularity. Introduced
+by ORCA (OSDI '22). Encompasses continuous batching as the most common
+specialization; also covers chunked-prefill scheduling, spec-dec-aware
+scheduling, and KV-aware preemption.
+- See also: Continuous batching, ORCA, Selective batching. See `10/03`.
+
+**ORCA.** Yu et al., OSDI '22. The first system to schedule LLM serving at
+iteration granularity instead of request granularity, introducing iteration-
+level batching (later universally called continuous batching) and selective
+batching to handle requests at heterogeneous lengths in a single batch.
+Foundational to every modern inference engine.
+- See also: Continuous batching, Iteration-level scheduling, Selective batching. See `10/03`.
+
+**POD-Attention.** Agrawal et al., ASPLOS '25. A unified attention kernel for
+heterogeneous prefill+decode batches that overlaps the two phases at the kernel
+level rather than dispatching them as separate kernels. Lifts the
+throughput-vs-TPOT Pareto frontier in chunked-prefill schedules.
+- See also: Chunked prefill, Continuous batching. See `10/03`.
+
+**Sarathi-Serve.** Agrawal et al., OSDI '24. The production-grade chunked-
+prefill scheduler that separates two contributions present together in the
+2023 Sarathi preprint: chunked prefill (the technique) and the *stall-free
+schedule* with a token budget (the policy). Demonstrated SLO improvements
+across diverse workloads and motivated the token-budget scheduling pattern now
+standard in vLLM V1.
+- See also: Chunked prefill, Token budget, Continuous batching. See `10/03`.
+
+**Selective batching.** ORCA's mechanism for batching requests at different
+sequence lengths in a single forward pass without padding to the maximum
+length: operations that depend on per-request state (attention, KV reads) run
+unbatched, while operations that are sequence-position-independent (FFN,
+projection matmuls) run batched. The structural reason continuous batching is
+efficient at variable request lengths.
+- See also: ORCA, Continuous batching, Iteration-level scheduling. See `10/03`.
+
+**Token budget.** Per-iteration cap on the total number of tokens (prefill
+chunks + decode tokens) admitted into the next forward pass. The scheduling
+parameter that mediates the TTFT/ITL trade-off in chunked-prefill engines:
+larger budgets favor TTFT (more prefill work per step), smaller budgets favor
+ITL (more decode steps per second). Standard in vLLM V1, SGLang, and
+Sarathi-Serve.
+- See also: Chunked prefill, Sarathi-Serve, Continuous batching. See `10/03`.
 
 ---
 
@@ -270,7 +347,7 @@ trick in GPT-OSS / Gemma-3 kernels.
 hits cuBLAS / FA-grade speeds in a fraction of the code. Basis for ThunderMLA,
 HipKittens (AMD MI300), and ParallelKittens (multi-GPU); v2.0 (2026) supports
 NVFP4/MXFP8 GEMMs on Blackwell.
-- See also: CuTe-DSL, TileLang. See `10/01`, `10/09`. `[ThunderKittens]`
+- See also: CuTe-DSL, TileLang. See `10/01`. `[ThunderKittens]`
 
 **TileLang.** Composable tiled programming DSL (PKU/Microsoft, 2025) that
 reaches ~98% of FlashMLA performance on H100 in ~70 lines of Python; basis of
@@ -354,7 +431,7 @@ Hopper inference deployments since 2024.
 (GGML) used by llama.cpp. Supports k-quants (Q4_K_M, etc.) and i-quants
 (IQ4_XS, IQ3_S, etc., codebook-based with importance matrix); MXFP4 and NVFP4
 ggml types added in 2025 to support GPT-OSS.
-- See also: HQQ, AWQ, llama.cpp. See `80/06`, `10/04`.
+- See also: HQQ, AWQ, llama.cpp. See `80/09`, `10/04`.
 
 **GPTQ.** Approximate-second-order (Hessian-based) layer-wise weight
 quantization (ICLR 2023). The reference 4-bit / 3-bit weight-only recipe from
@@ -1092,7 +1169,7 @@ unmerged and uses BGMV/SGMV-style kernels to batch heterogeneous adapters.
 server (Nov 2023): heterogeneous continuous batching plus async adapter
 exchange between GPU and CPU.
 - See also: S-LoRA, Punica. See `40/01`,
-  `80/06`. `[LoRAX]`
+  `80/10`. `[LoRAX]`
 
 **LoraHub.** Coefficient-weighted composition of multiple trained LoRAs for
 unseen tasks (COLM 2024); reference for the "multi-LoRA composition" serving
@@ -1304,8 +1381,7 @@ v0.5 adds scale-to-zero, UCCL transport, and active-active HA.
 **Modal.** Container-on-demand serverless GPU platform with fast cold start
 (custom snapshot/sandbox runtime); auto-scaling with minimum-replicas-zero by
 default. Often the comparison point for "managed" tier in benchmarks.
-- See also: BentoML, Replicate, Cloudflare AI Gateway. See `50/01`,
-  `80/06`. `[Modal]`
+- See also: BentoML, Replicate, Cloudflare AI Gateway. See `50/01`. `[Modal]`
 
 **OpenTelemetry GenAI.** Semantic conventions for generative-AI spans, metrics,
 and events: `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`,
@@ -1339,7 +1415,7 @@ paths (`trtllm-serve`, Dynamo, Triton BLS).
 
 **TGI (Text Generation Inference).** Hugging Face's serving framework; archived
 as read-only March 2026, with HF officially recommending vLLM/SGLang.
-- See also: vLLM, SGLang. See `80/06`.
+- See also: vLLM, SGLang. See `80/10`.
 
 **UCCL.** Host-resident software transport stack used in llm-d 0.5 inside NIXL
 to replace UCX in some paths; reports 2.4× more congestion resilience vs UCX
@@ -1396,7 +1472,7 @@ kernel selection for CPU/GPU hybrid MoE inference; runs DeepSeek-R1 671B on a
 single 24 GB 4090D + DRAM at ~14 tok/s decode. Pivoted to a kernel library
 called by SGLang in Oct 2025.
 - See also: PowerInfer, MoE-Infinity, Fiddler. See `20/05`,
-  `80/06`. `[KTransformers]`
+  `80/10`. `[KTransformers]`
 
 **Mélange.** UC Berkeley + Microsoft cost-allocation framework (April 2024)
 that picks the cheapest GPU type per (request size, request rate, SLO);
@@ -1703,7 +1779,7 @@ fine-grained matches that a single-vector embedding loses.
 **llama.cpp.** GGML/GGUF-based CPU-first LLM inference framework with broad
 hardware coverage (CUDA, Metal, Vulkan, ROCm, Hexagon HMX). Adds MXFP4 / NVFP4
 ggml types and GGUF support for almost all open MoEs.
-- See also: GGUF, MLX. See `80/06`.
+- See also: GGUF, MLX. See `80/09`.
 
 **LMFE (lm-format-enforcer).** Token-mask-per-step constrained-decoder
 integration that informed early vLLM/Mistral integrations; outpaced by
@@ -1724,7 +1800,7 @@ adopt.
 **MLX / MLX-LM.** Apple's array framework with unified-memory CPU/GPU
 execution; M5's Neural Accelerators add tensor-core-class kernels. mlx-lm is
 the LLM-serving wrapper.
-- See also: llama.cpp. See `80/06`.
+- See also: llama.cpp. See `80/09`.
 
 **Outlines.** First widely-deployed FSM-based constrained decoder (.txt, July
 2023); drove industry adoption of "regex / JSON-schema as a serving primitive"
