@@ -1,6 +1,6 @@
-# LLM Inference Infrastructure: A Staff-Level Survey
+# LLM Inference Infrastructure
 
-A textbook-style survey of production LLM inference systems. GPU-centric. Inference-focused. Written at staff-engineer depth.
+A textbook-style survey of production LLM inference systems. GPU-centric. Inference-focused. Pitched at staff-engineer depth.
 
 Coverage spans the techniques, systems, and open-source engines that constitute production LLM inference as of mid-2026: from roofline models and attention kernels through disaggregated serving, KV offload, multi-tenant scheduling, and cluster-level routing. Hardware chapters cover the NVIDIA roadmap through Rubin, AMD CDNA 4, and major ASICs. OSS engine chapters go deep on vLLM V1, SGLang, TensorRT-LLM, Dynamo, and eight others.
 
