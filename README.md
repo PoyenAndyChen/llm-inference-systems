@@ -1,6 +1,6 @@
 # LLM Inference Systems
 
-A textbook-style survey of production LLM inference systems, compiled with Claude Code as a self-study project. GPU-centric. Inference-focused. Aimed at staff-engineer depth.
+A textbook-style survey of production LLM inference systems, compiled with Claude Code as a self-study project. GPU-centric. Inference-focused.
 
 *Information current as of mid-2026. Technical errors and stale content are possible — verify critical claims against the cited primary sources. Issues and corrections welcome.*
 

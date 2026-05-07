@@ -12,7 +12,7 @@ The scope is the infrastructure layer. Adversarial prompting, jailbreaks, prompt
 
 ## 1. Threat model
 
-A staff-level threat model names the adversary, the assets, and the attack surface explicitly.
+A complete threat model names the adversary, the assets, and the attack surface explicitly.
 
 **Adversary types.** The *co-tenant adversary* is a paying tenant on the same backend who issues crafted requests, observes timings, observes cache-hit signals, and tries to learn something about another tenant's prompts, completions, retrieved documents, or fine-tuned adapters — the dominant adversary in commercial multi-tenant SaaS. The *compromised-tenant adversary* (credential theft, supply-chain, prompt-injection escalation) is indistinguishable from a co-tenant adversary at the infrastructure layer. The *malicious operator or insider* — a cloud provider, hosting employee, or compromised host-OS root with hypervisor access — is the adversary that *confidential computing* exists to defend against. Most multi-tenant SaaS does not contract on this adversary; regulated industries (health, finance, defense) increasingly do.
 

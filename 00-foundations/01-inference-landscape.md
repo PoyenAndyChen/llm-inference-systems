@@ -189,7 +189,7 @@ The full feature matrix across engines and orchestrators — vLLM, SGLang, TRT-L
 
 ## 6. How the field measures itself
 
-Five families of benchmarks set the public conversation. Each measures something different, and each invites different interpretation pathologies. A staff-level operator should know what each measures and what each does *not*.
+Five families of benchmarks set the public conversation. Each measures something different and each invites different interpretation pathologies; reading any of them well requires understanding both what it measures and what it does *not*.
 
 **MLPerf Inference v5.0 / v5.1.** Run by MLCommons; the closest the industry has to apples-to-apples accelerator benchmarks. MLPerf defines four scenarios; for LLMs the two that matter are:
 
