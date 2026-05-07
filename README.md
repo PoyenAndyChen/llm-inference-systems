@@ -1,8 +1,8 @@
 # LLM Inference Systems
 
-*A self-study survey, compiled by Poyen (Andy) Chen with Claude Code. Shared in the hope it's useful.*
+A textbook-style survey of production LLM inference systems, compiled with Claude Code as a self-study project. GPU-centric. Inference-focused. Aimed at staff-engineer depth.
 
-A textbook-style survey of production LLM inference systems. GPU-centric. Inference-focused. Aimed at staff-engineer depth.
+*Information current as of mid-2026. Technical errors and stale content are possible — verify critical claims against the cited primary sources. Issues and corrections welcome.*
 
 Coverage spans the techniques, systems, and open-source engines that constitute production LLM inference as of mid-2026: from roofline models and attention kernels through disaggregated serving, KV offload, multi-tenant scheduling, and cluster-level routing. Hardware chapters cover the NVIDIA roadmap through Rubin, AMD CDNA 4, and major ASICs. OSS engine chapters go deep on vLLM V1, SGLang, TensorRT-LLM, Dynamo, and eight others.
 
